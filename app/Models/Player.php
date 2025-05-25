@@ -20,4 +20,16 @@ class Player extends Model
         'checked_in' => 'boolean',
         'checked_in_at' => 'datetime',
     ];
+
+    // For checked-in players
+    public function scopeCheckedIn($query)
+    {
+        return $query->where('checked_in', true);
+    }
+
+    // For not checked-in players
+    public function scopeNotCheckedIn($query)
+    {
+        return $query->where('checked_in', false);
+    }
 }

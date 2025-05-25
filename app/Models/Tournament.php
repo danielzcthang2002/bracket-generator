@@ -5,6 +5,7 @@ namespace App\Models;
 use App\TournamentModeEnum;
 use App\TournamentStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Tournament extends Model
 {
@@ -45,4 +46,9 @@ class Tournament extends Model
         'status' => TournamentStatus::class,
         'mode_type' => TournamentModeEnum::class,
     ];
+
+    public function players(): HasMany
+    {
+        return $this->hasMany(Player::class, 'tournament_id', 'id');
+    }
 }

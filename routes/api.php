@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\TournamentApiController;
+use App\Services\TournamentMatchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -18,11 +19,15 @@ Route::group(['prefix' => 'tournaments'], function () {
     Route::put('/{id}', [TournamentApiController::class, 'update']);
 
     Route::group(['prefix' => '/{tournamentId}/players'], function () {
-    Route::get('/', [TournamentApiController::class, 'getPlayers']);
-    Route::post('/', [TournamentApiController::class, 'addPlayer']);
-    // Route::put('/{playerId}', [TournamentApiController::class, 'updatePlayer']);
-    Route::delete('/{playerId}', [TournamentApiController::class, 'removePlayer']);
-});
+        Route::get('/', [TournamentApiController::class, 'getPlayers']);
+        Route::post('/', [TournamentApiController::class, 'addPlayer']);
+        // Route::put('/{playerId}', [TournamentApiController::class, 'updatePlayer']);
+        Route::delete('/{playerId}', [TournamentApiController::class, 'removePlayer']);
+    });
 });
 
+Route::get('/test', function(){
+    $service = new TournamentMatchService();
 
+    return $service->generateMatches(1);
+});
