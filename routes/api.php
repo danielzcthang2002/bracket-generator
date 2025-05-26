@@ -18,12 +18,9 @@ Route::group(['prefix' => 'tournaments'], function () {
     Route::post('/', [TournamentApiController::class, 'store']);
     Route::put('/{id}', [TournamentApiController::class, 'update']);
 
-    Route::group(['prefix' => '/{tournamentId}/players'], function () {
-        Route::get('/', [TournamentApiController::class, 'getPlayers']);
-        Route::post('/', [TournamentApiController::class, 'addPlayer']);
-        // Route::put('/{playerId}', [TournamentApiController::class, 'updatePlayer']);
-        Route::delete('/{playerId}', [TournamentApiController::class, 'removePlayer']);
-    });
+    Route::get('/{tournamentId}/players', [TournamentApiController::class, 'getPlayers']);
+    Route::post('/{tournamentId}/players', [TournamentApiController::class, 'addPlayer']);
+    Route::delete('/{tournamentId}/players/{playerId}', [TournamentApiController::class, 'removePlayer']);
 });
 
 Route::get('/test', function(){

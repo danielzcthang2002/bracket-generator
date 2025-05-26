@@ -87,8 +87,9 @@ class TournamentApiController extends BaseApiController
         );
     }
 
-    public function removePlayer(Request $request, int $playerId)
+    public function removePlayer(Request $request)
     {
+        $playerId = (int) $request->route('playerId');
         $deletedPlayer = $this->playerService->removePlayer($playerId);
         return $this->successResponse(
             $deletedPlayer,

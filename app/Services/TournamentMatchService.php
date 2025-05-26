@@ -9,7 +9,6 @@ use App\Models\Tournament;
 class TournamentMatchService
 {
 
-
     public function generateMatches(int $tournamentId)
     {
         $tournament = Tournament::findOrFail($tournamentId);
@@ -18,7 +17,7 @@ class TournamentMatchService
 
         switch ($tournamentMode) {
             case 'single_elimination':
-                return $this->generateSingleEliminationMatches($tournament);
+                return $this->initializeSingleElimination($tournament);
             case 'double_elimination':
                 return [];
             case 'round_robin':
@@ -28,19 +27,25 @@ class TournamentMatchService
         }
     }
 
-    public function generateSingleEliminationMatches(Tournament $tournament)
+    public function initializeSingleElimination(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('seed')->get();
+        $players = $tournament->players()->checkedIn()->orderBy('seed', 'desc')->get();
         $numPlayers = $players->count();
+        $numPlayers = 35;
         $numRounds = $this->calculateTotalRound($numPlayers);
-        $firstRoundMatches = $this->calculateFirstRoundMatches($numPlayers);
-        $secondRoundMatchesCount = $this->calculateMatchesCountInRound($numRounds, 2);
+        $firstRoundMatches = $this->firstRoundMatches($numPlayers);
+
+        $data = [];
+
+        for ($i = 1; $i <= $numRounds; $i++) {
+            $data[$i] = $this->calculateMatchesCountInRound($numRounds, $i);
+        }
 
         return [
             'total_players' => $numPlayers,
             'total_rounds' => $numRounds,
             'first_round_matches' => $firstRoundMatches,
-            'second_round_matches_count' => $secondRoundMatchesCount,
+            'data' => $data,
         ];
     }
 
@@ -65,8 +70,18 @@ class TournamentMatchService
         return (int) (2 ** ($roundsFromEnd - 1));
     }
 
-    private function calculateFirstRoundMatches(int $numPlayers): int
+    private function firstRoundMatches(int $numPlayers)
     {
-        return (int) ceil($numPlayers / 2);
+        if ($numPlayers < 2) {
+            return 0;
+        }
+
+        $nextPowerOfTwo = pow(2, ceil(log($numPlayers, 2)));
+
+        // Calculate the number of byes in the first round
+        // Byes are the difference between the next power of two and the actual number of players
+        $byes = $nextPowerOfTwo - $numPlayers;
+
+        return ($numPlayers - $byes) / 2;
     }
 }
