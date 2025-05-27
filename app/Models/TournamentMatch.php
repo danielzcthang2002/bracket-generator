@@ -13,6 +13,8 @@ class TournamentMatch extends Model
         'state',
         'player1_id',
         'player2_id',
+        'player1_score',
+        'player2_score',
         'player1_prereq_match_id',
         'player2_prereq_match_id',
         'winner_id',

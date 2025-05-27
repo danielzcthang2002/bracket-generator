@@ -13,7 +13,8 @@ class Player extends Model
         'tournament_id',
         'seed',
         'checked_in',
-        'checked_in_at'
+        'checked_in_at',
+        'final_rank',
     ];
 
     protected $casts = [

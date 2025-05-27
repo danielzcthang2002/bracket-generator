@@ -19,6 +19,9 @@ return new class extends Migration
             $table->foreignId('player1_id')->nullable()->constrained('players', 'id')->nullOnDelete();
             $table->foreignId('player2_id')->nullable()->constrained('players', 'id')->nullOnDelete();
 
+            $table->decimal('player1_score', 8, 2)->nullable();
+            $table->decimal('player2_score', 8, 2)->nullable();
+
             $table->foreignId('player1_prereq_match_id')->nullable()->constrained('tournament_matches', 'id')->nullOnDelete();
             $table->foreignId('player2_prereq_match_id')->nullable()->constrained('tournament_matches', 'id')->nullOnDelete();
 
@@ -32,6 +35,7 @@ return new class extends Migration
 
             $table->boolean('player1_is_prereq_match_loser')->default(false);
             $table->boolean('player2_is_prereq_match_loser')->default(false);
+
 
             $table->timestamps();
         });

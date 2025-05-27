@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Tournament;
+use App\Models\TournamentMatch;
 
 class TournamentMatchService
 {
@@ -31,22 +32,74 @@ class TournamentMatchService
     {
         $players = $tournament->players()->checkedIn()->orderBy('seed', 'desc')->get();
         $numPlayers = $players->count();
-        $numPlayers = 35;
         $numRounds = $this->calculateTotalRound($numPlayers);
-        $firstRoundMatches = $this->firstRoundMatches($numPlayers);
-
-        $data = [];
+        $rounds = [];
 
         for ($i = 1; $i <= $numRounds; $i++) {
-            $data[$i] = $this->calculateMatchesCountInRound($numRounds, $i);
+            if ($i == 1) {
+                $matchNumber = (int) $this->firstRoundMatches($numPlayers);
+                $rounds[] = $this->filterPlayersByRound($players, $matchNumber);
+            } else {
+                $matchNumber = (int) $this->calculateMatchesCountInRound($numRounds, $i);
+                $rounds[] = $this->filterPlayersByRound($players, $matchNumber);
+            }
+        }
+        // return $rounds;
+
+        $matches = [];
+        $suggestedPlayOrder = 1;
+        foreach ($rounds as $roundKey => $round) {
+            $player1_id = null;
+            $player2_id = null;
+            // Loop throgh each player in the round
+            // and insert them into a match
+            foreach ($round as $key => $player) {
+                if ($player1_id === null) {
+                    $player1_id = $player['id'];
+                } elseif ($player2_id === null) {
+                    $player2_id = $player['id'];
+                }
+
+                if ($player1_id !== null && $player2_id !== null) {
+                    // Create a match with the two players
+                    $matches[] = [
+                        'tournament_id' => $tournament->id,
+                        'state' => 'pending',
+                        'player1_id' => $player1_id == 0 ? null : $player1_id,
+                        'player2_id' => $player2_id == 0 ? null : $player2_id,
+                        'round' => $roundKey + 1,
+                        'suggested_play_order' => $suggestedPlayOrder,
+                    ];
+                    // Reset player IDs for the next match
+                    $player1_id = null;
+                    $player2_id = null;
+                    $suggestedPlayOrder++;
+                }
+            }
         }
 
-        return [
-            'total_players' => $numPlayers,
-            'total_rounds' => $numRounds,
-            'first_round_matches' => $firstRoundMatches,
-            'data' => $data,
-        ];
+        // foreach ($matches as $key => $match) {
+        //     TournamentMatch::create($match);
+        // }
+        return TournamentMatch::where('tournament_id', $tournament->id)
+            ->orderBy('round', 'asc')
+            ->orderBy('suggested_play_order', 'asc')
+            ->get();
+    }
+
+    private function filterPlayersByRound(&$players, int $matchNumber)
+    {
+        $num = $matchNumber * 2;
+        $data = $players->take($num);
+        $players = collect($players->slice($num))->values();
+
+        // Ensure that the data has enough elements to match the number of matches
+        // If there are not enough players, pad the array with default values
+        if ($data->count() < $num) {
+            $data = $data->pad($num, ['id' => 0]);
+        }
+
+        return $data;
     }
 
     private function calculateTotalRound(int $numPlayers): int

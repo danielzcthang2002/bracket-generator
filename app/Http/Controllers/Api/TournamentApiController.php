@@ -49,7 +49,8 @@ class TournamentApiController extends BaseApiController
         );
     }
 
-    public function update(TournamentStoreRequest $request, int $id){
+    public function update(TournamentStoreRequest $request, int $id)
+    {
         $validated = $request->validated();
 
         $updatedTournament = $this->tournamentService->updateTournament($id, $validated);
@@ -94,6 +95,22 @@ class TournamentApiController extends BaseApiController
         return $this->successResponse(
             $deletedPlayer,
             'Player removed successfully'
+        );
+    }
+
+    public function importPlayers(Request $request, int $tournamentId, int $playerCount)
+    {
+        for ($i = 0; $i < $playerCount; $i++) {
+            $data = [
+                'name' => 'Player Test ' . ($i + 1),
+                'checked_in' => true,
+                'tournament_id' => $tournamentId,
+            ];
+
+            $this->playerService->createPlayer($data);
+        }
+        return $this->successResponse(
+            'Players imported successfully'
         );
     }
 }

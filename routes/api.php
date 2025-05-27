@@ -23,6 +23,8 @@ Route::group(['prefix' => 'tournaments'], function () {
     Route::delete('/{tournamentId}/players/{playerId}', [TournamentApiController::class, 'removePlayer']);
 });
 
+Route::post('/tournaments/{tournamentId}/import/players/{playerCount}',[TournamentApiController::class, 'importPlayers']);
+
 Route::get('/test', function(){
     $service = new TournamentMatchService();
 
