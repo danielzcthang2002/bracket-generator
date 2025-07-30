@@ -18,7 +18,7 @@ return new class extends Migration
             $table->integer('seed')->nullable();
             $table->boolean('checked_in')->default(false);
             $table->timestamp('checked_in_at')->nullable();
-            $table->integer('fianl_rank')->nullable();
+            $table->integer('final_rank')->nullable();
             $table->timestamps();
         });
     }

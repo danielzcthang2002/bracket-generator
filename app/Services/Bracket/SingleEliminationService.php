@@ -6,8 +6,9 @@ namespace App\Services\Bracket;
 
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\TournamentMatchStateEnum;
 
-class SingleEliminationService
+class SingleEliminationService extends ModeService
 {
     public function initialize(Tournament $tournament)
     {
@@ -15,6 +16,8 @@ class SingleEliminationService
         $numPlayers = $players->count();
         $numRounds = $this->calculateTotalRound($numPlayers);
         $rounds = [];
+        $validMatchIds = [];
+        $matchedWithWinner = [];
 
         for ($i = 1; $i <= $numRounds; $i++) {
             if ($i == 1) {
@@ -25,17 +28,13 @@ class SingleEliminationService
                 $rounds[] = $this->filterPlayersByRound($players, $matchNumber);
             }
         }
-
-        // return $rounds;
-
-        $matches = [];
         $suggestedPlayOrder = 1;
         $preRequestMatch = collect();
+
         foreach ($rounds as $roundKey => $round) {
             $player1_id = null;
             $player2_id = null;
-            // Loop throgh each player in the round
-            // and insert them into a match
+
             foreach ($round as $key => $player) {
                 if ($player1_id === null) {
                     $player1_id = $player['id'];
@@ -46,72 +45,136 @@ class SingleEliminationService
                 if ($player1_id !== null && $player2_id !== null) {
                     $player1PreReq = null;
                     $player2PreReq = null;
-                    $preRequestMatch->push($suggestedPlayOrder);
 
                     if ($player1_id == 0) {
                         $player1PreReq = $preRequestMatch->first();
                         $preRequestMatch = $preRequestMatch->slice(1)->values();
                     }
+
                     if ($player2_id == 0) {
                         $player2PreReq = $preRequestMatch->first();
                         $preRequestMatch = $preRequestMatch->slice(1)->values();
                     }
-                    // Create a match with the two players
-                    $matches[] = [
+
+                    if (isset($matchedWithWinner[$player1PreReq])) {
+                        $player1_id = $matchedWithWinner[$player1PreReq]->winner_id;
+                    }
+                    if (isset($matchedWithWinner[$player2PreReq])) {
+                        $player2_id = $matchedWithWinner[$player2PreReq]->winner_id;
+                    }
+
+                    // Save the match directly and get its ID
+                    $match = TournamentMatch::updateOrCreate([
                         'tournament_id' => $tournament->id,
-                        'state' => 'pending',
-                        'player1_id' => $player1_id == 0 ? null : $player1_id,
-                        'player2_id' => $player2_id == 0 ? null : $player2_id,
                         'round' => $roundKey + 1,
                         'suggested_play_order' => $suggestedPlayOrder,
+                    ], [
+                        'player1_id' => $player1_id == 0 ? null : $player1_id,
+                        'player2_id' => $player2_id == 0 ? null : $player2_id,
                         'player1_prereq_match_id' => $player1PreReq,
                         'player2_prereq_match_id' => $player2PreReq,
-                    ];
+                    ]);
 
-                    // Reset player IDs for the next match
+                    $validMatchIds[] = $match->id;
+
+                    // Push real match ID instead of suggestedPlayOrder
+                    $preRequestMatch->push($match->id);
+
+                    // Reset for next match
                     $player1_id = null;
                     $player2_id = null;
                     $suggestedPlayOrder++;
+                    if ($match->winner_id !== null) {
+                        $matchedWithWinner[$match->id] = $match;
+                    }
                 }
             }
         }
-        return $matches;
-
-        // foreach ($matches as $key => $match) {
-        //     TournamentMatch::create($match);
-        // }
-        return TournamentMatch::where('tournament_id', $tournament->id)
-            ->orderBy('round', 'asc')
+        $tournament->matches()
+            ->whereNotIn('id', $validMatchIds)
+            ->delete();
+        $this->updateMatchesState($tournament);
+        return $tournament->matches()
             ->orderBy('suggested_play_order', 'asc')
+            ->with(['player1', 'player2', 'matchScores'])
             ->get();
     }
 
-    // private function filterPlayersByRound(&$players, int $matchNumber)
-    // {
-    //     $num = $matchNumber * 2;
-    //     $data = $players->take($num);
-    //     $players = collect($players->slice($num))->values();
+    private function updateMatchesState(Tournament $tournament): void
+    {
+        $tournament->matches()
+            ->whereNotNull('player1_id')
+            ->whereNotNull('player2_id')
+            ->update(['state' => TournamentMatchStateEnum::OPEN]);
 
-    //     $missing = $num - $data->count();
+        $tournament->matches()
+            ->whereNotNull('winner_id')
+            ->update(['state' => TournamentMatchStateEnum::COMPLETE]);
+        if (!$tournament->matches()->whereNull('winner_id')->exists()) {
+            $this->assignFinalRanks($tournament);
+        } else {
+            $tournament->players()->update(['final_rank' => null]);
+        }
+    }
 
-    //     if ($missing > 0) {
-    //         $data = $data->values(); // Ensure it's indexed properly
+    private function assignFinalRanks(Tournament $tournament): void
+    {
+        $totalPlayers = $tournament->players()->count();
+        $totalRounds = $this->calculateTotalRound($totalPlayers);
 
-    //         // Distribute the byes in between existing players
-    //         for ($i = 0; $i < $missing; $i++) {
-    //             // Insert bye at every other position
-    //             $position = ($i * 2) + 1;
+        // Step 1: Track elimination round for each player
+        $eliminatedRounds = [];
 
-    //             if ($position > $data->count()) {
-    //                 $position = $data->count(); // insert at the end if needed
-    //             }
+        // Get all matches ordered by round descending (last to first)
+        $matches = $tournament->matches()->orderByDesc('round')->get();
 
-    //             $data->splice($position, 0, [['id' => 0]]);
-    //         }
-    //     }
+        foreach ($matches as $match) {
+            // Skip matches without a winner yet
+            if (!$match->winner_id) {
+                continue;
+            }
 
-    //     return $data;
-    // }
+            // Determine loser
+            $loserId = $match->player1_id === $match->winner_id
+                ? $match->player2_id
+                : $match->player1_id;
+
+            // Only assign the *first* round they lost
+            if (!isset($eliminatedRounds[$loserId])) {
+                $eliminatedRounds[$loserId] = $match->round;
+            }
+
+            // Winner: if this is the final match, mark as champion
+            if ($match->round === $totalRounds) {
+                $winner = $tournament->players()->find($match->winner_id);
+                $winner?->update(['final_rank' => 1]);
+
+                // Loser of final = 2nd place
+                $loser = $tournament->players()->find($loserId);
+                $loser?->update(['final_rank' => 2]);
+            }
+        }
+
+        // Step 2: Assign final ranks based on round of elimination
+        foreach ($eliminatedRounds as $playerId => $roundEliminated) {
+            // Skip finalists already handled
+            $existingRank = $tournament->players()->find($playerId)?->final_rank;
+            if ($existingRank) {
+                continue;
+            }
+
+            // Players eliminated in same round share same rank
+            // Convert round to rank (lower round = higher rank)
+            // e.g., if totalRounds = 4 and eliminated in round 3 -> rank = 2^(totalRounds - 3) + 1
+            // This produces ranks like 3, 5, 9, 17, etc.
+
+            $relativeRound = $totalRounds - $roundEliminated;
+            $rank = pow(2, $relativeRound) + 1;
+
+            $tournament->players()->find($playerId)?->update(['final_rank' => $rank]);
+        }
+    }
+
     private function filterPlayersByRound(&$players, int $matchNumber)
     {
         $num = $matchNumber * 2;
@@ -141,27 +204,6 @@ class SingleEliminationService
         }
 
         return $data;
-    }
-
-    private function calculateTotalRound(int $numPlayers): int
-    {
-        /**
-         * Calculates the total number of rounds in a single elimination tournament.
-         * The formula is based on the number of players, where each round halves the number of players.
-         * For example, if there are 8 players, the rounds would be:
-         * - Round 1: 8 players -> 4 matches
-         * - Round 2: 4 players -> 2 matches
-         * - Round 3: 2 players -> 1 match
-         * Thus, the total number of rounds is log2(numPlayers).
-         */
-        return (int) ceil(log($numPlayers, 2));
-    }
-
-    private function calculateMatchesCountInRound(int $totalRounds, int $roundNumber): int
-    {
-        // Round numbers start from 1 (first round) to N (final)
-        $roundsFromEnd = $totalRounds - $roundNumber + 1;
-        return (int) (2 ** ($roundsFromEnd - 1));
     }
 
     private function firstRoundMatches(int $numPlayers)

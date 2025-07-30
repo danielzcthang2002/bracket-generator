@@ -51,4 +51,9 @@ class Tournament extends Model
     {
         return $this->hasMany(Player::class, 'tournament_id', 'id');
     }
+
+    public function matches(): HasMany
+    {
+        return $this->hasMany(TournamentMatch::class, 'tournament_id', 'id');
+    }
 }

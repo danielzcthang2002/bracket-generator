@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Services;
@@ -6,6 +7,8 @@ namespace App\Services;
 use App\Http\Resources\Tournament\TournamentResource;
 use App\Http\Resources\Tournament\TournamentResourceCollection;
 use App\Models\Tournament;
+use App\Services\Bracket\SingleEliminationService;
+use App\TournamentStatus;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,9 +26,10 @@ class TournamentService
     {
         DB::beginTransaction();
         try {
+            $type = str_replace(' ', '_', $data['tournament_type']);
             $tournament = new Tournament();
             $tournament->name = $data['name'];
-            $tournament->mode_type = $data['mode_type'];
+            $tournament->mode_type = $type;
             $tournament->description = $data['description'] ?? null;
             $tournament->start_at = $data['start_at'] ?? null;
             $tournament->end_at = $data['end_at'] ?? null;
@@ -38,7 +42,7 @@ class TournamentService
             $tournament->rank_by = $data['rank_by'] ?? null;
 
             // Swiss mode specific fields
-            if ($data['mode_type'] === 'swiss') {
+            if ($data['tournament_type'] === 'swiss') {
                 $tournament->points_per_match_win = $data['points_per_match_win'];
                 $tournament->points_per_match_tie = $data['points_per_match_tie'];
                 $tournament->points_per_set_win = $data['points_per_set_win'];
@@ -117,5 +121,43 @@ class TournamentService
     {
         $tournaments = Tournament::all();
         return $tournaments;
+    }
+
+    public function generateMatches(int $id)
+    {
+        $tournament = Tournament::findOrFail($id);
+        $singleEliminationService = new SingleEliminationService();
+
+        return $singleEliminationService->initialize($tournament);
+    }
+
+    public function startTournament(int $id): Tournament
+    {
+        DB::beginTransaction();
+        try {
+            $tournament = Tournament::findOrFail($id);
+            $tournament->status = TournamentStatus::STARTED;
+            $tournament->save();
+            DB::commit();
+            return $tournament;
+        } catch (Exception $th) {
+            DB::rollBack();
+            throw new Exception('Failed to start tournament: ' . $th->getMessage());
+        }
+    }
+
+    public function endTournament(int $id): Tournament
+    {
+        DB::beginTransaction();
+        try {
+            $tournament = Tournament::findOrFail($id);
+            $tournament->status = TournamentStatus::ENDED;
+            $tournament->save();
+            DB::commit();
+            return $tournament;
+        } catch (Exception $th) {
+            DB::rollBack();
+            throw new Exception('Failed to end tournament: ' . $th->getMessage());
+        }
     }
 }

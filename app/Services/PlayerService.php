@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Player;
+use App\Models\Tournament;
+use App\TournamentStatus;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +16,13 @@ class PlayerService
     public function getPlayersByTournamentId(int $tournamentId): \Illuminate\Database\Eloquent\Collection
     {
         return Player::where('tournament_id', $tournamentId)->get();
+    }
+
+    private function tournamentStartedBlock(Tournament $tournament): void
+    {
+        if ($tournament->status == TournamentStatus::STARTED) {
+            throw new Exception('Tournament has already started. Cannot modify players.');
+        }
     }
 
     /**
@@ -30,8 +39,10 @@ class PlayerService
 
             $player->name = $data['name'];
             $player->tournament_id = $data['tournament_id'];
-            $player->checked_in = $data['checked_in'] ?? false;
+            $player->checked_in = $data['checked_in'] ?? true;
             $player->checked_in_at = $data['checked_in_at'] ?? null;
+            $tournament = Tournament::findOrFail($data['tournament_id']);
+            $this->tournamentStartedBlock($tournament);
 
             $this->assignSeed($player, $data['tournament_id']);
 
@@ -44,12 +55,28 @@ class PlayerService
         }
     }
 
+    public function processCheckedin(int $tournamentId): void
+    {
+        $uncheckedCount = Player::where('tournament_id', $tournamentId)
+            ->where('checked_in', false)
+            ->count();
+        $players = Player::where('tournament_id', $tournamentId)
+            ->where('checked_in', false)
+            ->delete();
+
+        if ($uncheckedCount > 0) {
+            $this->reassignSeeds($tournamentId);
+        }
+    }
+
 
 
 
     public function removePlayer(int $playerId): Player
     {
         $player = Player::findOrFail($playerId);
+        $tournament = Tournament::findOrFail($player->tournament_id);
+        $this->tournamentStartedBlock($tournament);
         $deletedPlayer = $player->replicate();
         $player->delete();
         $this->reassignSeeds($player->tournament_id);
@@ -81,6 +108,9 @@ class PlayerService
             ->orderBy('seed')
             ->get(['id']); // Only select IDs
 
+        if ($players->isEmpty()) {
+            return; // No players to reassign seeds for
+        }
         // Build case statement for bulk update (1 query)
         $cases = $players->map(
             fn($player, $index) =>
@@ -93,4 +123,38 @@ class PlayerService
             [$tournamentId]
         );
     }
+
+
+    public function checkInPlayer(int $tournamentId, int $playerId): Player
+    {
+        $player = Player::where('tournament_id', $tournamentId)
+            ->where('id', $playerId)
+            ->firstOrFail();
+
+        $tournament = Tournament::findOrFail($player->tournament_id);
+        $this->tournamentStartedBlock($tournament);
+
+        $player->checked_in = true;
+        $player->checked_in_at = now();
+        $player->save();
+
+        return $player;
+    }
+
+    public function undoCheckInPlayer(int $tournamentId, int $playerId): Player
+    {
+        $player = Player::where('tournament_id', $tournamentId)
+            ->where('id', $playerId)
+            ->firstOrFail();
+
+        $tournament = Tournament::findOrFail($player->tournament_id);
+        $this->tournamentStartedBlock($tournament);
+
+        $player->checked_in = false;
+        $player->checked_in_at = null;
+        $player->save();
+
+        return $player;
+    }
+
 }

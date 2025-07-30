@@ -33,4 +33,24 @@ class Player extends Model
     {
         return $query->where('checked_in', false);
     }
+
+    public function matchesAsPlayer1()
+    {
+        return $this->hasMany(TournamentMatch::class, 'player1_id');
+    }
+
+    public function matchesAsPlayer2()
+    {
+        return $this->hasMany(TournamentMatch::class, 'player2_id');
+    }
+
+    public function tournament()
+    {
+        return $this->belongsTo(Tournament::class);
+    }
+
+    public function matchScores()
+    {
+        return $this->hasMany(MatchScore::class);
+    }
 }
