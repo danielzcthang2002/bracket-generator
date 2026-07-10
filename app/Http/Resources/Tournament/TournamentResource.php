@@ -17,7 +17,7 @@ class TournamentResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'url' => $this->id,
+            'url' => $this->open_id,
             'name' => $this->name,
             'tournament_type' => $this->mode_type,
             'description' => $this->description,

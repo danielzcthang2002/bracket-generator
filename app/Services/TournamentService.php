@@ -8,6 +8,7 @@ use App\Http\Resources\Tournament\TournamentResource;
 use App\Http\Resources\Tournament\TournamentResourceCollection;
 use App\Models\Tournament;
 use App\Services\Bracket\SingleEliminationService;
+use App\TournamentModeEnum;
 use App\TournamentStatus;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
@@ -29,7 +30,8 @@ class TournamentService
             $type = str_replace(' ', '_', $data['tournament_type']);
             $tournament = new Tournament();
             $tournament->name = $data['name'];
-            $tournament->mode_type = $type;
+            $tournament->open_id = Tournament::generateOpenId();
+            $tournament->mode_type = TournamentModeEnum::from($type);
             $tournament->description = $data['description'] ?? null;
             $tournament->start_at = $data['start_at'] ?? null;
             $tournament->end_at = $data['end_at'] ?? null;
@@ -59,11 +61,12 @@ class TournamentService
         }
     }
 
-    public function updateTournament(int $id, array $data): Tournament
+    public function updateTournament(string $openId, array $data): Tournament
     {
         DB::beginTransaction();
         try {
-            $tournament = Tournament::findOrFail($id);
+            $tournament = Tournament::query()
+                ->where('open_id', $openId)->firstOrFail();
             $tournament->name = $data['name'] ?? $tournament->name;
             $tournament->mode_type = $data['mode_type'] ?? $tournament->mode_type;
             $tournament->description = $data['description'] ?? $tournament->description;
@@ -103,12 +106,13 @@ class TournamentService
     /**
      * Show a specific tournament by ID.
      *
-     * @param int $id
+     * @param string $openId
      * @return Tournament
      */
-    public function getTournamentById(int $id): Tournament
+    public function getTournamentById(string $openId): Tournament
     {
-        $tournament = Tournament::findOrFail($id);
+        $tournament = Tournament::query()
+            ->where('open_id', $openId)->firstOrFail();
         return $tournament;
     }
 
@@ -123,19 +127,21 @@ class TournamentService
         return $tournaments;
     }
 
-    public function generateMatches(int $id)
+    public function generateMatches(string $openId)
     {
-        $tournament = Tournament::findOrFail($id);
+        $tournament = Tournament::query()
+            ->where('open_id', $openId)->firstOrFail();
         $singleEliminationService = new SingleEliminationService();
 
         return $singleEliminationService->initialize($tournament);
     }
 
-    public function startTournament(int $id): Tournament
+    public function startTournament(string $openId): Tournament
     {
         DB::beginTransaction();
         try {
-            $tournament = Tournament::findOrFail($id);
+            $tournament = Tournament::query()
+                ->where('open_id', $openId)->firstOrFail();
             $tournament->status = TournamentStatus::STARTED;
             $tournament->save();
             DB::commit();
@@ -146,11 +152,12 @@ class TournamentService
         }
     }
 
-    public function endTournament(int $id): Tournament
+    public function endTournament(string $openId): Tournament
     {
         DB::beginTransaction();
         try {
-            $tournament = Tournament::findOrFail($id);
+            $tournament = Tournament::query()
+                ->where('open_id', $openId)->firstOrFail();
             $tournament->status = TournamentStatus::ENDED;
             $tournament->save();
             DB::commit();

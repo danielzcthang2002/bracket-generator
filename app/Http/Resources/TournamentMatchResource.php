@@ -33,6 +33,8 @@ class TournamentMatchResource extends JsonResource
             'completed_at' => $this->completed_at ? $this->completed_at->toIso8601String() : null,
             'player1_is_prereq_match_loser' => $this->player1_is_prereq_match_loser,
             'player2_is_prereq_match_loser' => $this->player2_is_prereq_match_loser,
+            'player1_prereq_identifier' => $this->player1_prereq_match_id. '-preid',
+            'player2_prereq_identifier' => $this->player2_prereq_match_id. '-preid',
             'scores_csv' => $this->whenLoaded('matchScores', function () {
                 return $this->matchScores
                     ->groupBy('set')

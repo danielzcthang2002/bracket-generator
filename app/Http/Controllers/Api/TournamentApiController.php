@@ -23,9 +23,9 @@ class TournamentApiController extends BaseApiController
         private readonly TournamentMatchService $tournamentMatchService
     ) {}
 
-    public function show(Request $request, int $id)
+    public function show(Request $request, $openId)
     {
-        $tournament = $this->tournamentService->getTournamentById($id);
+        $tournament = $this->tournamentService->getTournamentById($openId);
         return $this->successResponse(
             new TournamentResource($tournament),
             'Tournament retrieved successfully'
@@ -55,11 +55,11 @@ class TournamentApiController extends BaseApiController
         ], 201);
     }
 
-    public function update(TournamentStoreRequest $request, int $id)
+    public function update(TournamentStoreRequest $request, string $openId)
     {
         $validated = $request->validated();
 
-        $updatedTournament = $this->tournamentService->updateTournament($id, $validated);
+        $updatedTournament = $this->tournamentService->updateTournament($openId, $validated);
 
         return $this->successResponse(
             new TournamentResource($updatedTournament),
@@ -67,16 +67,16 @@ class TournamentApiController extends BaseApiController
         );
     }
 
-    public function getPlayers(Request $request, int $tournamentId)
+    public function getPlayers(Request $request, string $openId)
     {
-        $players = $this->playerService->getPlayersByTournamentId($tournamentId);
+        $players = $this->playerService->getPlayersByTournamentId($openId);
         return $this->successResponse(
             $players,
             'Players retrieved successfully'
         );
     }
 
-    public function addPlayer(Request $request, int $tournamentId)
+    public function addPlayer(Request $request, string $openId)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -84,9 +84,8 @@ class TournamentApiController extends BaseApiController
             'checked_in_at' => 'nullable|date',
         ]);
 
-        $validated['tournament_id'] = $tournamentId;
 
-        $newPlayer = $this->playerService->createPlayer($validated);
+        $newPlayer = $this->playerService->createPlayer($validated, $openId);
 
         return response()->json([
             'status' => 'success',
@@ -105,54 +104,59 @@ class TournamentApiController extends BaseApiController
         );
     }
 
-    public function checkInPlayer(Request $request, int $tournamentId, int $playerId)
+    public function checkInPlayer(Request $request, string $openId, int $playerId)
     {
-        $checkedIn = $this->playerService->checkInPlayer($tournamentId, $playerId);
+        $checkedIn = $this->playerService->checkInPlayer($openId, $playerId);
         return $this->successResponse(
             $checkedIn,
             'Player checked in successfully'
         );
     }
 
-    public function undoCheckInPlayer(Request $request, int $tournamentId, int $playerId)
+    public function undoCheckInPlayer(Request $request, string $openId, int $playerId)
     {
-        $checkedIn = $this->playerService->undoCheckInPlayer($tournamentId, $playerId);
+        $checkedIn = $this->playerService->undoCheckInPlayer($openId, $playerId);
         return $this->successResponse(
             $checkedIn,
             'Player check-in undone successfully'
         );
     }
 
-    public function importPlayers(Request $request, int $tournamentId, int $playerCount)
+    public function importPlayers(Request $request, string $openId, int $playerCount)
     {
         for ($i = 0; $i < $playerCount; $i++) {
             $data = [
                 'name' => 'Player Test ' . ($i + 1),
                 'checked_in' => true,
-                'tournament_id' => $tournamentId,
             ];
 
-            $this->playerService->createPlayer($data);
+            $this->playerService->createPlayer($data, $openId);
         }
         return $this->successResponse(
             'Players imported successfully'
         );
     }
 
-    public function seedingStateMatches(Request $request, int $tournamentId)
+    public function seedingStateMatches(Request $request, string $openId)
     {
-        $matches = $this->tournamentService->generateMatches($tournamentId)->groupBy('round');
+        $matches = $this->tournamentService->generateMatches($openId)->groupBy('round');
+        $data = [];
+        foreach ($matches as $key => $round) {
+            $data[$key] = $round->map(function ($match) {
+                return new TournamentMatchResource($match);
+            });
+        }
 
         return response()->json([
             'status' => 'success',
             'message' => 'Matches generated successfully',
-            'matches_by_round' => $matches,
+            'matches_by_round' => $data,
         ], 200);
     }
 
-    public function getMatches(Request $request, int $tournamentId)
+    public function getMatches(Request $request, string $openId)
     {
-        $matches = $this->tournamentService->generateMatches($tournamentId);
+        $matches = $this->tournamentService->generateMatches($openId);
         $data = $matches->map(function ($match) {
             return [
                 'match' => new TournamentMatchResource($match)
@@ -161,9 +165,9 @@ class TournamentApiController extends BaseApiController
         return response()->json($data, 200);
     }
 
-    public function getParticipants(Request $request, int $tournamentId)
+    public function getParticipants(Request $request, string $openId)
     {
-        $participants = $this->playerService->getPlayersByTournamentId($tournamentId);
+        $participants = $this->playerService->getPlayersByTournamentId($openId);
 
         $data = $participants->map(function ($participant) {
             return [
@@ -173,26 +177,26 @@ class TournamentApiController extends BaseApiController
         return response()->json($data, 200);
     }
 
-    public function processCheckedInPlayers(Request $request, int $tournamentId)
+    public function processCheckedInPlayers(Request $request, string $openId)
     {
-        $this->playerService->processCheckedin($tournamentId);
+        $this->playerService->processCheckedin($openId);
         return $this->successResponse(
             'Checked-in players processed successfully'
         );
     }
 
-    public function startTournament(Request $request, int $tournamentId)
+    public function startTournament(Request $request, string $openId)
     {
-        $tournament = $this->tournamentService->startTournament($tournamentId);
+        $tournament = $this->tournamentService->startTournament($openId);
         return $this->successResponse(
             new TournamentResource($tournament),
             'Tournament started successfully'
         );
     }
 
-    public function endTournament(Request $request, int $tournamentId)
+    public function endTournament(Request $request, string $openId)
     {
-        $tournament = $this->tournamentService->endTournament($tournamentId);
+        $tournament = $this->tournamentService->endTournament($openId);
         return $this->successResponse(
             new TournamentResource($tournament),
             'Tournament ended successfully'
