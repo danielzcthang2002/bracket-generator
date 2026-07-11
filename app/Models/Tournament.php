@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
-use App\TournamentModeEnum;
-use App\TournamentStatus;
+use App\Enums\TournamentModeEnum;
+use App\Enums\TournamentStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class Tournament extends Model
 {

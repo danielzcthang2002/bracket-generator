@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources\Tournament;
 
-use App\TournamentModeEnum;
+use App\Enums\TournamentModeEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

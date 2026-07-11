@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Http\Resources\Tournament\TournamentResource;
-use App\Http\Resources\Tournament\TournamentResourceCollection;
+use App\Enums\TournamentModeEnum;
+use App\Enums\TournamentStatus;
 use App\Models\Tournament;
+use App\Services\Bracket\DoubleEliminationService;
+use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
-use App\TournamentModeEnum;
-use App\TournamentStatus;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class TournamentService
 {
@@ -144,6 +143,7 @@ class TournamentService
                 ->where('open_id', $openId)->firstOrFail();
             $tournament->status = TournamentStatus::STARTED;
             $tournament->save();
+            $this->handleTournamentModeSpecificLogic($tournament);
             DB::commit();
             return $tournament;
         } catch (Exception $th) {
@@ -165,6 +165,20 @@ class TournamentService
         } catch (Exception $th) {
             DB::rollBack();
             throw new Exception('Failed to end tournament: ' . $th->getMessage());
+        }
+    }
+
+    private function handleTournamentModeSpecificLogic(Tournament $tournament): void
+    {
+        if ($tournament->mode_type === TournamentModeEnum::SINGLE_ELIMINATION) {
+            $singleEliminationService = new SingleEliminationService();
+            $singleEliminationService->initialize($tournament);
+        }elseif($tournament->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION){
+            $doubleEliminationService = new DoubleEliminationService();
+            $doubleEliminationService->initialize($tournament);
+        }elseif($tournament->mode_type === TournamentModeEnum::ROUND_ROBIN){
+            $roundRobinService = new RoundRobinService();
+            $roundRobinService->initialize($tournament);
         }
     }
 }

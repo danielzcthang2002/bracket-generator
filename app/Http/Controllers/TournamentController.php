@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\TournamentModeEnum;
-use App\TournamentStatus;
+use App\Enums\TournamentModeEnum;
+use App\Enums\TournamentStatus;
+use App\Services\TournamentMatchService;
+use App\Services\TournamentService;
 use App\Models\Player;
 use App\Models\Tournament;
 use Illuminate\Http\RedirectResponse;
@@ -122,6 +124,15 @@ class TournamentController extends Controller
                         'id' => $match->id,
                         'state' => $match->state?->value,
                         'round' => $match->round,
+                        'suggested_play_order' => $match->suggested_play_order,
+                        'player1_id' => $match->player1_id,
+                        'player2_id' => $match->player2_id,
+                        'player1_prereq_match_id' => $match->player1_prereq_match_id,
+                        'player2_prereq_match_id' => $match->player2_prereq_match_id,
+                        'player1_is_prereq_match_loser' => (bool) $match->player1_is_prereq_match_loser,
+                        'player2_is_prereq_match_loser' => (bool) $match->player2_is_prereq_match_loser,
+                        'player1_score' => $match->player1_score,
+                        'player2_score' => $match->player2_score,
                         'winner_id' => $match->winner_id,
                     ];
                 })->values(),
@@ -261,5 +272,38 @@ class TournamentController extends Controller
         return redirect()
             ->route('tournament.show', $openId)
             ->with('success', 'Player deleted successfully.');
+    }
+
+    public function startTournament(string $openId): RedirectResponse
+    {
+        $service = new TournamentService();
+
+        $service->startTournament($openId);
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', 'Tournament started successfully.');
+    }
+
+    public function updateMatchScore(Request $request, string $openId, int $matchId): RedirectResponse
+    {
+        $validated = $request->validate([
+            'scores_csv' => ['required', 'string'],
+            'winner_id' => ['nullable', 'integer'],
+        ]);
+
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
+
+        $service = new TournamentMatchService();
+        $service->updateMatchScores(
+            $match->id,
+            $validated['scores_csv'],
+            $validated['winner_id'] ?? null,
+        );
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', 'Match scores updated successfully.');
     }
 }

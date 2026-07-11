@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
+import { TournamentBracket, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
 import { AddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -19,6 +21,15 @@ interface TournamentMatch {
     id: number;
     state: string | null;
     round: number | null;
+    suggested_play_order: number | null;
+    player1_id: number | null;
+    player2_id: number | null;
+    player1_prereq_match_id: number | null;
+    player2_prereq_match_id: number | null;
+    player1_is_prereq_match_loser: boolean;
+    player2_is_prereq_match_loser: boolean;
+    player1_score: string | null;
+    player2_score: string | null;
     winner_id: number | null;
 }
 
@@ -71,10 +82,9 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
     const [openAddPlayerModal, setOpenAddPlayerModal] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
     const [deletingPlayer, setDeletingPlayer] = useState<TournamentPlayer | null>(null);
-    const {
-        delete: destroy,
-        processing: deleteProcessing,
-    } = useForm({});
+    const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
+    const { delete: destroy, processing: deleteProcessing } = useForm({});
+    const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
 
     const submitDeletePlayer = () => {
         if (!deletingPlayer) {
@@ -84,6 +94,15 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
         destroy(route('tournament.player.destroy', [tournament.open_id, deletingPlayer.id]), {
             preserveScroll: true,
             onSuccess: () => setDeletingPlayer(null),
+        });
+    };
+
+    const startTournament = () => {
+        if (startTournamentProcessing) {
+            return;
+        }
+        postStartTournament(route('tournament.start', [tournament.open_id]), {
+            preserveScroll: true,
         });
     };
 
@@ -109,16 +128,8 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                         <p className="text-muted-foreground text-sm">Open ID: {tournament.open_id}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <AddPlayerModal
-                            open={openAddPlayerModal}
-                            onOpenChange={setOpenAddPlayerModal}
-                            tournamentOpenId={tournament.open_id}
-                        />
-                        <Button asChild variant="outline">
-                            <Link href="/tournaments" prefetch>
-                                Back to list
-                            </Link>
-                        </Button>
+                        <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} />
+                        {tournament.status == 'pending' && <Button onClick={startTournament}>Start tournament</Button>}
                         <Button asChild>
                             <Link href={`/tournaments/${tournament.open_id}/edit`} prefetch>
                                 Edit tournament
@@ -213,34 +224,26 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                         </CardContent>
                     </Card>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Matches</CardTitle>
-                            <CardDescription>Current tournament match records.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {tournament.matches.length === 0 ? (
-                                <p className="text-muted-foreground text-sm">No matches generated yet.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {tournament.matches.map((match) => (
-                                        <div key={match.id} className="flex items-center justify-between rounded-md border p-3">
-                                            <div>
-                                                <p className="font-medium">Match #{match.id}</p>
-                                                <p className="text-muted-foreground text-xs">Round: {match.round ?? '-'}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <Badge variant="outline">{toDisplayLabel(match.state)}</Badge>
-                                                <p className="text-muted-foreground mt-1 text-xs">Winner ID: {match.winner_id ?? '-'}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <TournamentBracket
+                        modeType={tournament.mode_type}
+                        players={tournament.players}
+                        matches={tournament.matches}
+                        onAddScore={(match: TournamentBracketMatch) => setScoringMatch(match)}
+                    />
                 </div>
             </div>
+
+            <MatchScoreModal
+                open={scoringMatch !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setScoringMatch(null);
+                    }
+                }}
+                tournamentOpenId={tournament.open_id}
+                players={tournament.players}
+                match={scoringMatch}
+            />
 
             <EditPlayerModal
                 open={editingPlayer !== null}

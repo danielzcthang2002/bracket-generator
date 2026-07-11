@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\TournamentStatus;
 use App\Models\Player;
 use App\Models\Tournament;
-use App\TournamentStatus;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -15,8 +15,8 @@ class PlayerService
 
     public function getPlayersByTournamentId(string $openId): \Illuminate\Database\Eloquent\Collection
     {
-        $tournament = Tournament::where('open_id', $openId)->firstOrFail();
-        return Player::where('tournament_id', $tournament->id)->get();
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        return Player::query()->where('tournament_id', $tournament->id)->get();
     }
 
     private function tournamentStartedBlock(Tournament $tournament): void
@@ -37,7 +37,7 @@ class PlayerService
     {
         DB::beginTransaction();
         try {
-            $tournament = Tournament::where('open_id', $openId)->firstOrFail();
+            $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
             $player = new Player();
 
             $player->name = $data['name'];
@@ -59,12 +59,12 @@ class PlayerService
 
     public function processCheckedin(string $openId): void
     {
-        $tournament = Tournament::where('open_id', $openId)->firstOrFail();
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
         $tournamentId = $tournament->id;
-        $uncheckedCount = Player::where('tournament_id', $tournamentId)
+        $uncheckedCount = Player::query()->where('tournament_id', $tournamentId)
             ->where('checked_in', false)
-            ->count();
-        $players = Player::where('tournament_id', $tournamentId)
+            ->count('*');
+        Player::query()->where('tournament_id', $tournamentId)
             ->where('checked_in', false)
             ->delete();
 
@@ -92,7 +92,7 @@ class PlayerService
     private function assignSeed(Player $player, int $tournamentId): void
     {
         // Lock the tournament players table to prevent race conditions
-        $latestSeed = Player::where('tournament_id', $tournamentId)
+        $latestSeed = Player::query()->where('tournament_id', $tournamentId)
             ->lockForUpdate()
             ->orderByDesc('seed')
             ->value('seed');
@@ -108,8 +108,8 @@ class PlayerService
     private function reassignSeeds(int $tournamentId): void
     {
         // Get all players in memory (1 query)
-        $players = Player::where('tournament_id', $tournamentId)
-            ->orderBy('seed')
+        $players = Player::query()->where('tournament_id', $tournamentId)
+            ->orderBy('seed', 'asc')
             ->get(['id']); // Only select IDs
 
         if ($players->isEmpty()) {
@@ -131,8 +131,8 @@ class PlayerService
 
     public function checkInPlayer(string $openId, int $playerId): Player
     {
-        $tournament = Tournament::where('open_id', $openId)->firstOrFail();
-        $player = Player::where('tournament_id', $tournament->id)
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $player = Player::query()->where('tournament_id', $tournament->id)
             ->where('id', $playerId)
             ->firstOrFail();
 
@@ -147,8 +147,8 @@ class PlayerService
 
     public function undoCheckInPlayer(string $openId, int $playerId): Player
     {
-        $tournament = Tournament::where('open_id', $openId)->firstOrFail();
-        $player = Player::where('tournament_id', $tournament->id)
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $player = Player::query()->where('tournament_id', $tournament->id)
             ->where('id', $playerId)
             ->firstOrFail();
 

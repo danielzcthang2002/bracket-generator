@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\TournamentMatchStateEnum;
+use App\Enums\TournamentMatchStateEnum;
 use Illuminate\Database\Eloquent\Model;
 
 class TournamentMatch extends Model

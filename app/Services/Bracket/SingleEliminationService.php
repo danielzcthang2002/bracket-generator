@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Bracket;
 
+use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
-use App\TournamentMatchStateEnum;
 
 class SingleEliminationService extends ModeService
 {
