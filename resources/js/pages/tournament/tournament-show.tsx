@@ -135,6 +135,11 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                                 Edit tournament
                             </Link>
                         </Button>
+                            <Button variant="destructive" onClick={() => destroy(route('tournament.destroy', [tournament.id]), {
+                                preserveScroll: true,
+                            })}>
+                                Delete tournament
+                            </Button>
                     </div>
                 </div>
 

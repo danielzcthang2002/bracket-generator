@@ -18,6 +18,12 @@ class TournamentMatchService
         $this->singleEliminationService = new SingleEliminationService();
     }
 
+    /**
+     * Generates matches for a given tournament based on its mode.
+     *
+     * @param int $tournamentId The ID of the tournament to generate matches for.
+     * @return array Returns the generated matches or an empty array if the tournament mode is not supported.
+     */
     public function generateMatches(int $tournamentId)
     {
         $tournament = Tournament::findOrFail($tournamentId);
@@ -36,6 +42,14 @@ class TournamentMatchService
         }
     }
 
+    /**
+     * Updates the scores for a given match and determines the winner.
+     *
+     * @param int $matchId The ID of the match to update scores for.
+     * @param string $scoresCsv A CSV string representing the scores for each set, e.g., "10-5,7-6".
+     * @param int|null $winnerId The ID of the player who won the match. If null, no winner is set.
+     * @return TournamentMatch The updated match with the new scores and optionally a winner.
+     */
     public function updateMatchScores(int $matchId, string $scoresCsv, $winnerId): TournamentMatch
     {
         $match = TournamentMatch::findOrFail($matchId);
@@ -114,3 +128,4 @@ class TournamentMatchService
         return $match;
     }
 }
+
