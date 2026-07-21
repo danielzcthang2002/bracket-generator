@@ -169,15 +169,23 @@ class RoundRobinService extends ModeService
     {
         $players = $tournament->players()->checkedIn()->get();
 
-        $stats = $players->mapWithKeys(fn ($p) => [$p->id => [
-            'player_id' => $p->id,
-            'wins' => 0,
-            'losses' => 0,
-            'ties' => 0,
-            'set_wins' => 0,
-            'set_losses' => 0,
-            'points' => 0.0,
-        ]]);
+        // Plain array, not a Collection: Collection's ArrayAccess doesn't
+        // return offsetGet() by reference, so `$stats[$id]['wins']++` below
+        // would throw "Indirect modification of overloaded element ... has
+        // no effect" if $stats were a Collection. A plain array supports
+        // nested mutation fine; we wrap it in a Collection only at return.
+        $stats = [];
+        foreach ($players as $p) {
+            $stats[$p->id] = [
+                'player_id' => $p->id,
+                'wins' => 0,
+                'losses' => 0,
+                'ties' => 0,
+                'set_wins' => 0,
+                'set_losses' => 0,
+                'points' => 0.0,
+            ];
+        }
 
         $matches = $tournament->matches()
             ->where(function ($q) {
@@ -253,7 +261,7 @@ class RoundRobinService extends ModeService
             }
         }
 
-        return collect($stats->values());
+        return collect(array_values($stats));
     }
 
     /**

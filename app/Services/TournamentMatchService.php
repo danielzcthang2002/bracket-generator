@@ -7,24 +7,31 @@ namespace App\Services;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Services\Bracket\DoubleEliminationService;
+use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
+use Illuminate\Support\Collection;
 
 class TournamentMatchService
 {
     private SingleEliminationService $singleEliminationService;
+    private DoubleEliminationService $doubleEliminationService;
+    private RoundRobinService $roundRobinService;
 
     public function __construct()
     {
         $this->singleEliminationService = new SingleEliminationService();
+        $this->doubleEliminationService = new DoubleEliminationService();
+        $this->roundRobinService = new RoundRobinService();
     }
 
     /**
      * Generates matches for a given tournament based on its mode.
      *
      * @param int $tournamentId The ID of the tournament to generate matches for.
-     * @return array Returns the generated matches or an empty array if the tournament mode is not supported.
+     * @return Collection Returns the generated matches or an empty array if the tournament mode is not supported.
      */
-    public function generateMatches(int $tournamentId)
+    public function generateMatches(int $tournamentId): Collection
     {
         $tournament = Tournament::findOrFail($tournamentId);
 
@@ -34,9 +41,9 @@ class TournamentMatchService
             case 'single_elimination':
                 return $this->singleEliminationService->initialize($tournament);
             case 'double_elimination':
-                return [];
+                return $this->doubleEliminationService->initialize($tournament);
             case 'round_robin':
-                return [];
+                return $this->roundRobinService->initialize($tournament);
             default:
                 throw new \Exception('Unsupported tournament mode: ' . $tournamentMode);
         }
