@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('tournaments', function (Blueprint $table) {
             $table->id();
+            $table->string('open_id', 50)->unique();
             $table->string('name', 255);
             $table->enum('mode_type', [
                 'single_elimination',

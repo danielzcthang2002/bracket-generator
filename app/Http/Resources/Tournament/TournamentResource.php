@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources\Tournament;
 
-use App\TournamentModeEnum;
+use App\Enums\TournamentModeEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,8 +17,9 @@ class TournamentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'url' => $this->open_id,
             'name' => $this->name,
-            'mode_type' => $this->mode_type,
+            'tournament_type' => $this->mode_type,
             'description' => $this->description,
             'start_at' => $this->start_at ? $this->start_at : null,
             'end_at' => $this->end_at ? $this->end_at : null,

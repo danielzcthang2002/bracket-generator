@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-use App\TournamentModeEnum;
-use App\TournamentStatus;
+use App\Enums\TournamentModeEnum;
+use App\Enums\TournamentStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Tournament extends Model
 {
@@ -13,6 +14,7 @@ class Tournament extends Model
 
     protected $fillable = [
         'name',
+        'open_id',
         'mode_type',
         'description',
         'start_at',
@@ -45,4 +47,20 @@ class Tournament extends Model
         'status' => TournamentStatus::class,
         'mode_type' => TournamentModeEnum::class,
     ];
+
+
+    public function players(): HasMany
+    {
+        return $this->hasMany(Player::class, 'tournament_id', 'id');
+    }
+
+    public function matches(): HasMany
+    {
+        return $this->hasMany(TournamentMatch::class, 'tournament_id', 'id');
+    }
+
+    public static function generateOpenId(): string
+    {
+        return strtoupper(base_convert(bin2hex(random_bytes(9)), 16, 36));
+    }
 }
