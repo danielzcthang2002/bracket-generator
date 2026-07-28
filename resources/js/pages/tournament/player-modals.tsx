@@ -25,6 +25,12 @@ interface AddPlayerModalProps {
     tournamentOpenId: string;
 }
 
+interface BulkPlayerModalFormData {
+    [key: string]: string;
+    prefix: string;
+    count: string;
+}
+
 export function AddPlayerModal({ open, onOpenChange, tournamentOpenId }: AddPlayerModalProps) {
     const { data, setData, post, processing, errors, reset, clearErrors } = useForm<PlayerModalFormData>({
         name: '',
@@ -97,6 +103,97 @@ export function AddPlayerModal({ open, onOpenChange, tournamentOpenId }: AddPlay
                         </DialogClose>
                         <Button type="submit" disabled={processing}>
                             Save player
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+interface BulkAddPlayerModalProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    tournamentOpenId: string;
+}
+
+export function BulkAddPlayerModal({ open, onOpenChange, tournamentOpenId }: BulkAddPlayerModalProps) {
+    const { data, setData, post, processing, errors, reset, clearErrors } = useForm<BulkPlayerModalFormData>({
+        prefix: '',
+        count: '2',
+    });
+
+    const closeModal = () => {
+        onOpenChange(false);
+        clearErrors();
+        reset();
+    };
+
+    const submitBulkAddPlayer = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        post(route('tournament.player.bulk.store', tournamentOpenId), {
+            preserveScroll: true,
+            onSuccess: () => closeModal(),
+        });
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onOpenChange={(isOpen) => {
+                if (!isOpen) {
+                    closeModal();
+                    return;
+                }
+
+                onOpenChange(true);
+            }}
+        >
+            <DialogTrigger asChild>
+                <Button variant="outline">Bulk add</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogTitle>Bulk Add Players</DialogTitle>
+                <DialogDescription>Create players from a shared name prefix and count.</DialogDescription>
+
+                <form className="space-y-4" onSubmit={submitBulkAddPlayer}>
+                    <div className="grid gap-2">
+                        <Label htmlFor="bulk_player_prefix">Name Prefix</Label>
+                        <Input
+                            id="bulk_player_prefix"
+                            value={data.prefix}
+                            onChange={(event) => setData('prefix', event.target.value)}
+                            placeholder="Player"
+                            disabled={processing}
+                            required
+                        />
+                        <InputError message={errors.prefix} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="bulk_player_count">Player Count</Label>
+                        <Input
+                            id="bulk_player_count"
+                            type="number"
+                            min={1}
+                            value={data.count}
+                            onChange={(event) => setData('count', event.target.value)}
+                            placeholder="8"
+                            disabled={processing}
+                            required
+                        />
+                        <InputError message={errors.count} />
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" onClick={closeModal} type="button">
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={processing}>
+                            Create players
                         </Button>
                     </DialogFooter>
                 </form>
