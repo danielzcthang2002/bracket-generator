@@ -228,6 +228,37 @@ class TournamentController extends Controller
             ->with('success', 'Player added successfully.');
     }
 
+    public function storePlayersBulk(Request $request, string $openId): RedirectResponse
+    {
+        $validated = $request->validate([
+            'prefix' => ['required', 'string', 'max:120'],
+            'count' => ['required', 'integer', 'min:1', 'max:512'],
+        ]);
+
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $prefix = trim($validated['prefix']);
+        $count = (int) $validated['count'];
+        $timestamp = now();
+        $players = [];
+
+        for ($index = 1; $index <= $count; $index++) {
+            $players[] = [
+                'name' => sprintf('%s %d', $prefix, $index),
+                'tournament_id' => $tournament->id,
+                'checked_in' => true,
+                'checked_in_at' => null,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ];
+        }
+
+        Player::query()->insert($players);
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', sprintf('%d players added successfully.', $count));
+    }
+
     public function updatePlayer(Request $request, string $openId, int $playerId): RedirectResponse
     {
         $validated = $request->validate([

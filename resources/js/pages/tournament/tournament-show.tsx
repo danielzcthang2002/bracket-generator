@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
+import { AddPlayerModal, BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
 import { TournamentBracket, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
-import { AddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
@@ -80,6 +80,7 @@ function toDisplayDate(value: string | null) {
 
 export default function TournamentShow({ tournament }: TournamentShowProps) {
     const [openAddPlayerModal, setOpenAddPlayerModal] = useState(false);
+    const [openBulkAddPlayerModal, setOpenBulkAddPlayerModal] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
     const [deletingPlayer, setDeletingPlayer] = useState<TournamentPlayer | null>(null);
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
@@ -129,6 +130,11 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                     </div>
                     <div className="flex items-center gap-2">
                         <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} />
+                        <BulkAddPlayerModal
+                            open={openBulkAddPlayerModal}
+                            onOpenChange={setOpenBulkAddPlayerModal}
+                            tournamentOpenId={tournament.open_id}
+                        />
                         {tournament.status == 'pending' && <Button onClick={startTournament}>Start tournament</Button>}
                         <Button asChild>
                             <Link href={`/tournaments/${tournament.open_id}/edit`} prefetch>
