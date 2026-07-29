@@ -88,7 +88,7 @@ class TournamentController extends Controller
     {
         $tournament = Tournament::query()
             ->withCount(['players', 'matches'])
-            ->with(['players', 'matches'])
+            ->with(['players', 'matches' => fn($q) => $q->orderBy('suggested_play_order', 'asc')])
             ->where('open_id', $openId)
             ->firstOrFail();
 
@@ -314,6 +314,17 @@ class TournamentController extends Controller
         return redirect()
             ->route('tournament.show', $openId)
             ->with('success', 'Tournament started successfully.');
+    }
+
+    public function endTournament(string $openId): RedirectResponse
+    {
+        $service = new TournamentService();
+
+        $service->endTournament($openId);
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', 'Tournament ended successfully.');
     }
 
     public function updateMatchScore(Request $request, string $openId, int $matchId): RedirectResponse

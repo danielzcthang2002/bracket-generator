@@ -30,6 +30,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Business Logic
         Route::post('{openId}/start', [TournamentController::class, 'startTournament'])->name('tournament.start');
+        Route::post('{openId}/end', [TournamentController::class, 'endTournament'])->name('tournament.end');
+
     });
 });
 

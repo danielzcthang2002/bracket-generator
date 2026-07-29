@@ -54,10 +54,10 @@ class TournamentMatchService
      *
      * @param int $matchId The ID of the match to update scores for.
      * @param string $scoresCsv A CSV string representing the scores for each set, e.g., "10-5,7-6".
-     * @param int|null $winnerId The ID of the player who won the match. If null, no winner is set.
+     * @param int|null $winnerId The ID of the player who won the match. If null, no winner is set. 'tie' for tie match
      * @return TournamentMatch The updated match with the new scores and optionally a winner.
      */
-    public function updateMatchScores(int $matchId, string $scoresCsv, $winnerId): TournamentMatch
+    public function updateMatchScores(int $matchId, string $scoresCsv, string|int|null $winnerId): TournamentMatch
     {
         $match = TournamentMatch::findOrFail($matchId);
         $player1Id = $match->player1_id;
@@ -67,11 +67,14 @@ class TournamentMatchService
             throw new \InvalidArgumentException('Match must have two players before scores can be submitted.');
         }
 
-        if ($winnerId !== null && !in_array($winnerId, [$player1Id, $player2Id])) {
+        $isTie = $winnerId == 'tie';
+        $winnerId = $winnerId !== null ? (int) $winnerId : null;
+
+        if (!$isTie && $winnerId !== null && !in_array($winnerId, [$player1Id, $player2Id], true)) {
             throw new \InvalidArgumentException('Winner ID must be one of the match players. ');
         }
 
-        $sets = array_values(array_filter(explode(',', rtrim($scoresCsv, ',')), fn ($set) => trim($set) !== ''));
+        $sets = array_values(array_filter(explode(',', rtrim($scoresCsv, ',')), fn($set) => trim($set) !== ''));
 
         if (count($sets) === 0) {
             throw new \InvalidArgumentException('At least one set score is required.');
@@ -135,4 +138,3 @@ class TournamentMatchService
         return $match;
     }
 }
-
