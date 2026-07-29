@@ -59,6 +59,7 @@ return new class extends Migration
             $table->decimal('points_per_set_win', 8, 2)->nullable();
             $table->decimal('points_per_set_tie', 8, 2)->nullable();
             $table->decimal('points_per_bye', 8, 2)->nullable();
+            $table->integer('swiss_rounds')->nullable();
 
 
             $table->timestamps();

@@ -32,6 +32,7 @@ class Tournament extends Model
         'points_per_set_win',
         'points_per_set_tie',
         'points_per_bye',
+        'swiss_rounds'
     ];
 
     protected $casts = [

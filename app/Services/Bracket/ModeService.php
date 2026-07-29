@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\Bracket;
 
-class ModeService
+use App\Models\Tournament;
+
+abstract class ModeService
 {
+    public function initialize(Tournament $tournament){}
     /**
      * Calculate the total number of rounds based on the number of players.
      *

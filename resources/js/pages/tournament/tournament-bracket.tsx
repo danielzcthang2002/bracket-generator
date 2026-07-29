@@ -10,6 +10,7 @@ interface TournamentBracketPlayer {
 export interface TournamentBracketMatch {
     id: number;
     state: string | null;
+    is_tie?: boolean | null;
     round: number | null;
     suggested_play_order: number | null;
     player1_id: number | null;
@@ -134,6 +135,7 @@ function BracketColumns({
                                 {roundData.matches.map((match) => {
                                     const player1IsWinner = match.player1_id !== null && match.winner_id === match.player1_id;
                                     const player2IsWinner = match.player2_id !== null && match.winner_id === match.player2_id;
+                                    const isTie = match.is_tie === true;
 
                                     return (
                                         <div key={match.id} className="bg-background rounded-md border p-3 shadow-sm">
@@ -181,7 +183,9 @@ function BracketColumns({
                                                 </div>
                                             </div>
 
-                                            {match.winner_id ? (
+                                            {isTie ? (
+                                                <p className="text-muted-foreground mt-2 text-[11px]">Result: Tie</p>
+                                            ) : match.winner_id ? (
                                                 <p className="text-muted-foreground mt-2 text-[11px]">
                                                     Winner: {playerById[match.winner_id]?.name ?? `Player #${match.winner_id}`}
                                                 </p>

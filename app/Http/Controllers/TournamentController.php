@@ -134,6 +134,7 @@ class TournamentController extends Controller
                         'player1_score' => $match->player1_score,
                         'player2_score' => $match->player2_score,
                         'winner_id' => $match->winner_id,
+                        'is_tie' => $match->is_tie,
                     ];
                 })->values(),
             ],
@@ -331,7 +332,7 @@ class TournamentController extends Controller
     {
         $validated = $request->validate([
             'scores_csv' => ['required', 'string'],
-            'winner_id' => ['nullable', 'integer'],
+            'winner_id' => ['nullable', 'string'],
         ]);
 
         $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();

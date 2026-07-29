@@ -11,6 +11,7 @@ use App\Models\Tournament;
 use App\Services\Bracket\DoubleEliminationService;
 use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
+use App\Services\Bracket\SwissService;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -185,6 +186,9 @@ class TournamentService
             $doubleEliminationService->initialize($tournament);
         } elseif ($tournament->mode_type === TournamentModeEnum::ROUND_ROBIN) {
             $roundRobinService = new RoundRobinService();
+            $roundRobinService->initialize($tournament);
+        } elseif ($tournament->mode_type === TournamentModeEnum::SWISS) {
+            $roundRobinService = new SwissService();
             $roundRobinService->initialize($tournament);
         }
     }

@@ -10,6 +10,7 @@ use App\Models\TournamentMatch;
 use App\Services\Bracket\DoubleEliminationService;
 use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
+use App\Services\Bracket\SwissService;
 use Illuminate\Support\Collection;
 
 class TournamentMatchService
@@ -18,11 +19,14 @@ class TournamentMatchService
     private DoubleEliminationService $doubleEliminationService;
     private RoundRobinService $roundRobinService;
 
+    private SwissService $swissService;
+
     public function __construct()
     {
         $this->singleEliminationService = new SingleEliminationService();
         $this->doubleEliminationService = new DoubleEliminationService();
         $this->roundRobinService = new RoundRobinService();
+        $this->swissService = new SwissService();
     }
 
     /**
@@ -44,6 +48,8 @@ class TournamentMatchService
                 return $this->doubleEliminationService->initialize($tournament);
             case 'round_robin':
                 return $this->roundRobinService->initialize($tournament);
+            case 'swiss':
+                return $this->swissService->initialize($tournament);
             default:
                 throw new \Exception('Unsupported tournament mode: ' . $tournamentMode);
         }
@@ -67,8 +73,8 @@ class TournamentMatchService
             throw new \InvalidArgumentException('Match must have two players before scores can be submitted.');
         }
 
-        $isTie = $winnerId == 'tie';
-        $winnerId = $winnerId !== null ? (int) $winnerId : null;
+        $isTie = $winnerId === 'tie';
+        $winnerId = $winnerId !== null && $winnerId !== 'tie' ? (int) $winnerId : null;
 
         if (!$isTie && $winnerId !== null && !in_array($winnerId, [$player1Id, $player2Id], true)) {
             throw new \InvalidArgumentException('Winner ID must be one of the match players. ');
@@ -121,8 +127,13 @@ class TournamentMatchService
 
         $match->player1_score = $totalPlayer1Score;
         $match->player2_score = $totalPlayer2Score;
+        $match->winner_id = null;
+        $match->loser_id = null;
+        $match->is_tie = $isTie;
 
-        if ($winnerId) {
+        if ($isTie) {
+            $match->state = TournamentMatchStateEnum::COMPLETE;
+        } elseif ($winnerId !== null) {
             $match->winner_id = $winnerId;
             $match->loser_id = $winnerId === $match->player1_id ? $match->player2_id : $match->player1_id;
             $match->state = TournamentMatchStateEnum::COMPLETE;
@@ -130,7 +141,7 @@ class TournamentMatchService
 
         $match->save();
 
-        if ($winnerId) {
+        if ($winnerId !== null || $isTie) {
             $this->generateMatches($match->tournament_id);
         }
 

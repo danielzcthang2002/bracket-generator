@@ -104,7 +104,7 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, players,
             <DialogContent>
                 <DialogTitle>Add Scores</DialogTitle>
                 <DialogDescription>
-                    Enter set scores as CSV (example: 6-4,4-6,7-5), then optionally select a winner.
+                    Enter set scores as CSV (example: 6-4,4-6,7-5), then optionally select a winner or mark the match as a tie.
                 </DialogDescription>
 
                 <form className="space-y-4" onSubmit={submitScores}>
@@ -131,6 +131,7 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, players,
                             disabled={processing || selectablePlayers.length === 0}
                         >
                             <option value="">Select winner (optional)</option>
+                            <option value="tie">Tie</option>
                             {selectablePlayers.map((player) => (
                                 <option key={player.id} value={player.id}>
                                     {player.name}
