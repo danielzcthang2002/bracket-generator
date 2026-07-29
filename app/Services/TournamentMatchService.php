@@ -73,8 +73,8 @@ class TournamentMatchService
             throw new \InvalidArgumentException('Match must have two players before scores can be submitted.');
         }
 
-        $isTie = $winnerId == 'tie';
-        $winnerId = $winnerId !== null ? (int) $winnerId : null;
+        $isTie = $winnerId === 'tie';
+        $winnerId = $winnerId !== null && $winnerId !== 'tie' ? (int) $winnerId : null;
 
         if (!$isTie && $winnerId !== null && !in_array($winnerId, [$player1Id, $player2Id], true)) {
             throw new \InvalidArgumentException('Winner ID must be one of the match players. ');
@@ -127,8 +127,13 @@ class TournamentMatchService
 
         $match->player1_score = $totalPlayer1Score;
         $match->player2_score = $totalPlayer2Score;
+        $match->winner_id = null;
+        $match->loser_id = null;
+        $match->is_tie = $isTie;
 
-        if ($winnerId) {
+        if ($isTie) {
+            $match->state = TournamentMatchStateEnum::COMPLETE;
+        } elseif ($winnerId !== null) {
             $match->winner_id = $winnerId;
             $match->loser_id = $winnerId === $match->player1_id ? $match->player2_id : $match->player1_id;
             $match->state = TournamentMatchStateEnum::COMPLETE;
@@ -136,7 +141,7 @@ class TournamentMatchService
 
         $match->save();
 
-        if ($winnerId) {
+        if ($winnerId !== null || $isTie) {
             $this->generateMatches($match->tournament_id);
         }
 
