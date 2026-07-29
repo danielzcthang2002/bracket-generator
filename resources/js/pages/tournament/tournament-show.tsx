@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
-import { AddPlayerModal, BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
+import { BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
 import { TournamentBracket, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -86,6 +86,7 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
     const { delete: destroy, processing: deleteProcessing } = useForm({});
     const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
+    const { post: postEndTournament, processing: endTournamentProcessing } = useForm();
 
     const submitDeletePlayer = () => {
         if (!deletingPlayer) {
@@ -105,6 +106,12 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
         postStartTournament(route('tournament.start', [tournament.open_id]), {
             preserveScroll: true,
         });
+    };
+
+    const endTournament = () => {
+        if (endTournamentProcessing) return;
+
+        postEndTournament(route('tournament.end', [tournament.open_id]));
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -129,23 +136,29 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                         <p className="text-muted-foreground text-sm">Open ID: {tournament.open_id}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} />
+                        {/* <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} /> */}
                         <BulkAddPlayerModal
                             open={openBulkAddPlayerModal}
                             onOpenChange={setOpenBulkAddPlayerModal}
                             tournamentOpenId={tournament.open_id}
                         />
                         {tournament.status == 'pending' && <Button onClick={startTournament}>Start tournament</Button>}
+                        {tournament.status == 'started' && <Button variant="destructive" onClick={endTournament}>End tournament</Button>}
                         <Button asChild>
                             <Link href={`/tournaments/${tournament.open_id}/edit`} prefetch>
-                                Edit tournament
+                                Edit
                             </Link>
                         </Button>
-                            <Button variant="destructive" onClick={() => destroy(route('tournament.destroy', [tournament.id]), {
-                                preserveScroll: true,
-                            })}>
-                                Delete tournament
-                            </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() =>
+                                destroy(route('tournament.destroy', [tournament.id]), {
+                                    preserveScroll: true,
+                                })
+                            }
+                        >
+                            Delete
+                        </Button>
                     </div>
                 </div>
 
@@ -200,7 +213,7 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                     </Card>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="grid gap-4 xl:grid-cols-1">
                     <Card>
                         <CardHeader>
                             <CardTitle>Players</CardTitle>

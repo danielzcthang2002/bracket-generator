@@ -32,7 +32,9 @@ class RoundRobinService extends ModeService
 {
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('seed', 'desc')->get();
+        $players = $tournament->players()
+            ->checkedIn()
+            ->orderBy('id', 'asc')->get();
         $numPlayers = $players->count();
 
         if ($numPlayers < 2) {
@@ -297,7 +299,7 @@ class RoundRobinService extends ModeService
             $setPct = $setTotal > 0 ? $p['set_wins'] / $setTotal : 0;
 
             return [
-                -($h2hWins[$p['player_id']] ?? 0),
+                - ($h2hWins[$p['player_id']] ?? 0),
                 -$setPct,
                 $seeds[$p['player_id']] ?? PHP_INT_MAX,
             ];

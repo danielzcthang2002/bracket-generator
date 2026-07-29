@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\TournamentMatchStateEnum;
 use App\Enums\TournamentModeEnum;
 use App\Enums\TournamentStatus;
 use App\Models\Tournament;
@@ -154,10 +155,16 @@ class TournamentService
 
     public function endTournament(string $openId): Tournament
     {
+        $tournament = Tournament::query()
+            ->where('open_id', $openId)->firstOrFail();
+        $allMatchesCompleted = $tournament
+            ->matches()
+            ->where('state', TournamentMatchStateEnum::COMPLETE)
+            ->exists();
+        if (! $allMatchesCompleted) throw new Exception("All matches need to be completed to end a tournament.", 1);
+
         DB::beginTransaction();
         try {
-            $tournament = Tournament::query()
-                ->where('open_id', $openId)->firstOrFail();
             $tournament->status = TournamentStatus::ENDED;
             $tournament->save();
             DB::commit();
@@ -173,10 +180,10 @@ class TournamentService
         if ($tournament->mode_type === TournamentModeEnum::SINGLE_ELIMINATION) {
             $singleEliminationService = new SingleEliminationService();
             $singleEliminationService->initialize($tournament);
-        }elseif($tournament->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION){
+        } elseif ($tournament->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION) {
             $doubleEliminationService = new DoubleEliminationService();
             $doubleEliminationService->initialize($tournament);
-        }elseif($tournament->mode_type === TournamentModeEnum::ROUND_ROBIN){
+        } elseif ($tournament->mode_type === TournamentModeEnum::ROUND_ROBIN) {
             $roundRobinService = new RoundRobinService();
             $roundRobinService->initialize($tournament);
         }

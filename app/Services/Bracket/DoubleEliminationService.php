@@ -156,10 +156,10 @@ class DoubleEliminationService extends ModeService
                 $wb1Losers,
             );
             $lbRoundMatches[$lbRoundCounter] = $round1Matches;
-            $validMatchIds = [...$validMatchIds, ...array_map(fn ($m) => $m->id, $round1Matches)];
+            $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $round1Matches)];
 
-            $survivors = array_map(fn ($m) => ['match' => $m->id, 'loser' => false], $round1Matches);
-            $carry = array_map(fn ($m) => ['match' => $m->id, 'loser' => true], $leftoverWb1Losers);
+            $survivors = array_map(fn($m) => ['match' => $m->id, 'loser' => false], $round1Matches);
+            $carry = array_map(fn($m) => ['match' => $m->id, 'loser' => true], $leftoverWb1Losers);
 
             // WB round 1 is already fully accounted for by round 1 above (plus
             // whatever carried over). WB rounds 2..N still need a shrink round
@@ -170,14 +170,14 @@ class DoubleEliminationService extends ModeService
                 $population = array_merge($survivors, $carry);
                 [$matches, $survivors, $carry] = $this->buildLbRound($tournament, $lbRoundCounter, $playOrder, $population);
                 $lbRoundMatches[$lbRoundCounter] = $matches;
-                $validMatchIds = [...$validMatchIds, ...array_map(fn ($m) => $m->id, $matches)];
+                $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $matches)];
 
                 $lbRoundCounter++;
-                $wbLosers = array_map(fn ($m) => ['match' => $m->id, 'loser' => true], $wbRoundMatches[$k] ?? []);
+                $wbLosers = array_map(fn($m) => ['match' => $m->id, 'loser' => true], $wbRoundMatches[$k] ?? []);
                 $population = array_merge($survivors, $carry);
                 [$matches, $survivors, $carry] = $this->buildLbRound($tournament, $lbRoundCounter, $playOrder, $population, $wbLosers);
                 $lbRoundMatches[$lbRoundCounter] = $matches;
-                $validMatchIds = [...$validMatchIds, ...array_map(fn ($m) => $m->id, $matches)];
+                $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $matches)];
             }
 
             // Normally the loop above already leaves exactly one survivor.
@@ -189,7 +189,7 @@ class DoubleEliminationService extends ModeService
                 $population = array_merge($survivors, $carry);
                 [$matches, $survivors, $carry] = $this->buildLbRound($tournament, $lbRoundCounter, $playOrder, $population);
                 $lbRoundMatches[$lbRoundCounter] = $matches;
-                $validMatchIds = [...$validMatchIds, ...array_map(fn ($m) => $m->id, $matches)];
+                $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $matches)];
             }
 
             $totalLbRounds = $lbRoundCounter;
@@ -204,79 +204,85 @@ class DoubleEliminationService extends ModeService
                 }
             }
         } else {
-            // Non-split: unchanged from the original algorithm. LB round 1 =
-            // WB round 1 losers; WB round(k+1) losers merge in every other
-            // round after that.
-            $totalLbRounds = $totalWbRounds > 1 ? (2 * $totalWbRounds - 2) : 0;
+            // Non-split: seed the losers bracket from WB round 1's losers,
+            // then walk each subsequent WB round's losers into the LB.
+            //
+            // Unlike the old fixed odd/shrink-even/merge cadence, this only
+            // inserts a shrink round when the current LB population is
+            // actually larger than the incoming WB losers - if the counts
+            // already match (common once WB round 1 has byes, e.g. 6
+            // players), it merges directly, same as Challonge does. This
+            // also fixes a bug in the old code: when population and
+            // incoming counts didn't line up 1:1 (which happens whenever
+            // WB round 1 has byes), `array_chunk`/naive pairing silently
+            // dropped players. buildLbRound's carry mechanism now keeps
+            // any unpaired entrant instead of dropping it.
+            $lbRoundCounter = 0;
+            $population = array_map(
+                fn($m) => ['match' => $m->id, 'loser' => true],
+                $wbRoundMatches[1] ?? []
+            );
 
-            for ($k = 1; $k < $totalWbRounds; $k++) {
-                $oddRound = 2 * $k - 1;
-                $evenRound = 2 * $k;
+            for ($k = 2; $k <= $totalWbRounds; $k++) {
+                $incoming = array_map(
+                    fn($m) => ['match' => $m->id, 'loser' => true],
+                    $wbRoundMatches[$k] ?? []
+                );
 
-                $oddMatches = [];
-                if ($k === 1) {
-                    $source = $wbRoundMatches[1] ?? [];
-                    foreach (array_chunk($source, 2) as $pair) {
-                        if (count($pair) < 2) {
-                            continue; // odd leftover, no opponent yet
-                        }
-                        $oddMatches[] = $this->createLbMatch(
-                            $tournament,
-                            $oddRound,
-                            $playOrder,
-                            prereq1: $pair[0]->id,
-                            isLoser1: true,
-                            prereq2: $pair[1]->id,
-                            isLoser2: true,
-                        );
-                        $playOrder++;
-                    }
-                } else {
-                    $source = $lbRoundMatches[$evenRound - 2] ?? [];
-                    foreach (array_chunk($source, 2) as $pair) {
-                        if (count($pair) < 2) {
-                            continue;
-                        }
-                        $oddMatches[] = $this->createLbMatch(
-                            $tournament,
-                            $oddRound,
-                            $playOrder,
-                            prereq1: $pair[0]->id,
-                            isLoser1: false,
-                            prereq2: $pair[1]->id,
-                            isLoser2: false,
-                        );
-                        $playOrder++;
-                    }
-                }
-                $lbRoundMatches[$oddRound] = $oddMatches;
-                $validMatchIds = [...$validMatchIds, ...array_map(fn ($m) => $m->id, $oddMatches)];
-
-                $lbSurvivors = $lbRoundMatches[$oddRound];
-                $wbDropIns = $wbRoundMatches[$k + 1] ?? [];
-                $evenMatches = [];
-                $pairCount = min(count($lbSurvivors), count($wbDropIns));
-
-                for ($i = 0; $i < $pairCount; $i++) {
-                    $evenMatches[] = $this->createLbMatch(
+                if (count($population) > count($incoming)) {
+                    // Population needs to shrink before it can merge 1:1
+                    // with the incoming WB losers.
+                    $lbRoundCounter++;
+                    [$shrinkMatches, $survivors, $carry] = $this->buildLbRound(
                         $tournament,
-                        $evenRound,
+                        $lbRoundCounter,
                         $playOrder,
-                        prereq1: $lbSurvivors[$i]->id,
-                        isLoser1: false,
-                        prereq2: $wbDropIns[$i]->id,
-                        isLoser2: true,
+                        $population
                     );
-                    $playOrder++;
+                    $lbRoundMatches[$lbRoundCounter] = $shrinkMatches;
+                    $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $shrinkMatches)];
+                    $population = array_merge($survivors, $carry);
                 }
-                $lbRoundMatches[$evenRound] = $evenMatches;
-                $validMatchIds = [...$validMatchIds, ...array_map(fn ($m) => $m->id, $evenMatches)];
+
+                // Merge current population against this WB round's losers.
+                // Reverse the incoming side so nobody immediately re-faces
+                // the opponent they just played in WB.
+                $lbRoundCounter++;
+                $crossedIncoming = array_reverse($incoming);
+                [$mergeMatches, $survivors, $carry] = $this->buildLbRound(
+                    $tournament,
+                    $lbRoundCounter,
+                    $playOrder,
+                    $population,
+                    $crossedIncoming
+                );
+                $lbRoundMatches[$lbRoundCounter] = $mergeMatches;
+                $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $mergeMatches)];
+                $population = array_merge($survivors, $carry);
             }
 
-            $lbChampionMatch = $lbRoundMatches[$totalLbRounds][0] ?? null;
-            if ($lbChampionMatch) {
-                $lbChampionPrereqId = $lbChampionMatch->id;
-                $lbChampionIsLoser = false;
+            // Shrink whatever's left down to a single LB champion.
+            while (count($population) > 1) {
+                $lbRoundCounter++;
+                [$matches, $survivors, $carry] = $this->buildLbRound(
+                    $tournament,
+                    $lbRoundCounter,
+                    $playOrder,
+                    $population
+                );
+                $lbRoundMatches[$lbRoundCounter] = $matches;
+                $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $matches)];
+                $population = array_merge($survivors, $carry);
+            }
+
+            $totalLbRounds = $lbRoundCounter;
+
+            $lbChampionPrereqId = null;
+            $lbChampionIsLoser = false;
+            if (!empty($population)) {
+                $final = $population[0];
+                $lbChampionPrereqId = $final['match'];
+                $lbChampionIsLoser = $final['loser'] ?? false;
             }
         }
 
@@ -592,7 +598,7 @@ class DoubleEliminationService extends ModeService
             ->orderByDesc('round')
             ->get();
 
-        $decisiveFinal = $grandFinals->first(fn ($m) => $m->winner_id !== null);
+        $decisiveFinal = $grandFinals->first(fn($m) => $m->winner_id !== null);
         $allOthersDone = !$tournament->matches()
             ->where('round', '<=', $totalWbRounds)
             ->whereNull('winner_id')
