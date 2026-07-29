@@ -10,6 +10,7 @@ use App\Models\TournamentMatch;
 use App\Services\Bracket\DoubleEliminationService;
 use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
+use App\Services\Bracket\SwissService;
 use Illuminate\Support\Collection;
 
 class TournamentMatchService
@@ -18,11 +19,14 @@ class TournamentMatchService
     private DoubleEliminationService $doubleEliminationService;
     private RoundRobinService $roundRobinService;
 
+    private SwissService $swissService;
+
     public function __construct()
     {
         $this->singleEliminationService = new SingleEliminationService();
         $this->doubleEliminationService = new DoubleEliminationService();
         $this->roundRobinService = new RoundRobinService();
+        $this->swissService = new SwissService();
     }
 
     /**
@@ -44,6 +48,8 @@ class TournamentMatchService
                 return $this->doubleEliminationService->initialize($tournament);
             case 'round_robin':
                 return $this->roundRobinService->initialize($tournament);
+            case 'swiss':
+                return $this->swissService->initialize($tournament);
             default:
                 throw new \Exception('Unsupported tournament mode: ' . $tournamentMode);
         }
