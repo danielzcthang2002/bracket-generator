@@ -24,7 +24,7 @@ class DoubleEliminationService extends ModeService
 
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('seed', 'desc')->get();
+        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
         $numPlayers = $players->count();
         $splitParticipant = (bool) ($tournament->split_participant ?? false);
 
@@ -136,18 +136,19 @@ class DoubleEliminationService extends ModeService
         $lbChampionRawId = null;
 
         if ($isSplit) {
-            // LB round 1 is seeded from the bottom half, padded to
-            // topPlayerCount/2 matches (the same match count as WB round 1).
-            // Any bye slot left after placing the bottom half is filled by a
-            // WB round 1 loser instead of a true empty bye - once that WB
-            // match resolves, its loser drops straight into this exact slot.
-            // If there are more WB round 1 losers than bye slots, whatever
-            // doesn't fit here merges in on the very next round.
-            $lb1MatchCount = intdiv($topPlayerCount, 2);
             $lbRoundCounter = 1;
             $wb1Losers = $wbRoundMatches[1] ?? [];
 
-            [$round1Matches, $leftoverWb1Losers] = $this->buildSplitLbRoundOne(
+            // Size LB round 1 off the *actual* number of entrants (bottom players +
+            // WB round 1 losers), not off topPlayerCount alone. topPlayerCount/2 only
+            // happens to be correct when the split is roughly even; for a lopsided
+            // split (e.g. 39 players -> 32 top / 7 bottom) it forces far more slots
+            // than there are real entrants to fill them, leaving bye slots with no
+            // WB1 loser left in the queue to fill them - producing matches with
+            // neither a player nor a prereq, which can never resolve.
+            $lb1MatchCount = (int) ceil((count($bottomPlayers) + count($wb1Losers)) / 2);
+
+            [$round1Matches, $carryEntrants] = $this->buildSplitLbRoundOne(
                 $tournament,
                 $bottomPlayers,
                 $lb1MatchCount,
@@ -159,7 +160,7 @@ class DoubleEliminationService extends ModeService
             $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $round1Matches)];
 
             $survivors = array_map(fn($m) => ['match' => $m->id, 'loser' => false], $round1Matches);
-            $carry = array_map(fn($m) => ['match' => $m->id, 'loser' => true], $leftoverWb1Losers);
+            $carry = $carryEntrants;
 
             // WB round 1 is already fully accounted for by round 1 above (plus
             // whatever carried over). WB rounds 2..N still need a shrink round
@@ -360,14 +361,11 @@ class DoubleEliminationService extends ModeService
     }
 
     /**
-     * Seeds losers-bracket round 1 from the bottom-half of players
-     * (split_participant), padded to $matchNumber matches (== winners-bracket
-     * round 1's match count). Any bye slot is filled by a winners-bracket
-     * round 1 loser (via prereq, resolved once that match completes) rather
-     * than a true empty bye - that's what lets "TBD" slots in this round
-     * actually get filled in later.
-     *
-     * @return array{0: TournamentMatch[], 1: TournamentMatch[]} [matches, leftover WB round 1 losers that didn't fit]
+     * @return array{0: TournamentMatch[], 1: array} [matches, carryEntrants]
+     *   carryEntrants is a list of ['raw' => id] or ['match' => id, 'loser' => true]
+     *   entrants that couldn't be paired this round (because their bye-side
+     *   opponent ran out of WB1 losers to fill it) and must advance untouched
+     *   into LB round 2's population, instead of being stuck in a dead match.
      */
     private function buildSplitLbRoundOne(
         Tournament $tournament,
@@ -381,6 +379,7 @@ class DoubleEliminationService extends ModeService
         $queue = collect($wb1Losers);
 
         $matches = [];
+        $carry = [];
         $player1_id = null;
 
         foreach ($paired as $player) {
@@ -390,17 +389,42 @@ class DoubleEliminationService extends ModeService
             }
 
             $player2_id = $player['id'];
+            $isBye1 = $player1_id == 0;
+            $isBye2 = $player2_id == 0;
 
             $player1PreReq = null;
             $player2PreReq = null;
 
-            if ($player1_id == 0) {
+            if ($isBye1) {
                 $player1PreReq = $queue->first()?->id;
                 $queue = $queue->slice(1)->values();
             }
-            if ($player2_id == 0) {
+            if ($isBye2) {
                 $player2PreReq = $queue->first()?->id;
                 $queue = $queue->slice(1)->values();
+            }
+
+            // A bye slot that couldn't be filled (queue ran dry) has no
+            // opponent at all this round. Don't create a match with a
+            // permanently empty slot - whichever side DOES have an entrant
+            // skips this round and carries forward untouched to LB round 2.
+            if ($isBye1 && $player1PreReq === null) {
+                if (!$isBye2) {
+                    $carry[] = ['raw' => $player2_id];
+                } elseif ($player2PreReq !== null) {
+                    $carry[] = ['match' => $player2PreReq, 'loser' => true];
+                }
+                $player1_id = null;
+                continue;
+            }
+            if ($isBye2 && $player2PreReq === null) {
+                if (!$isBye1) {
+                    $carry[] = ['raw' => $player1_id];
+                } elseif ($player1PreReq !== null) {
+                    $carry[] = ['match' => $player1PreReq, 'loser' => true];
+                }
+                $player1_id = null;
+                continue;
             }
 
             $resolvedP1 = $player1PreReq !== null
@@ -430,12 +454,13 @@ class DoubleEliminationService extends ModeService
             $player1_id = null;
         }
 
-        // Whatever's left in the queue is WB round 1 losers that didn't fit
-        // into a bye slot here (only happens when there are more bottom-half
-        // players than bye slots) - the caller merges these in next round.
-        $leftoverWb1Losers = $queue->values()->all();
+        // Anything still sitting in the queue is a WB1 loser that never got
+        // used as a bye filler at all - carry it forward too.
+        foreach ($queue as $leftoverMatch) {
+            $carry[] = ['match' => $leftoverMatch->id, 'loser' => true];
+        }
 
-        return [$matches, $leftoverWb1Losers];
+        return [$matches, $carry];
     }
 
     /**

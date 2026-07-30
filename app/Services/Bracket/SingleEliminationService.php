@@ -12,7 +12,7 @@ class SingleEliminationService extends ModeService
 {
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('seed', 'desc')->get();
+        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
         $numPlayers = $players->count();
         $numRounds = $this->calculateTotalRound($numPlayers);
         $rounds = [];

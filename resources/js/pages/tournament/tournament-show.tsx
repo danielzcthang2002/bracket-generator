@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
@@ -8,6 +9,7 @@ import { BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-m
 import { TournamentBracket, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { ChevronDownIcon } from 'lucide-react';
 import { useState } from 'react';
 
 interface TournamentPlayer {
@@ -83,6 +85,8 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
     const [openBulkAddPlayerModal, setOpenBulkAddPlayerModal] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
     const [deletingPlayer, setDeletingPlayer] = useState<TournamentPlayer | null>(null);
+    const [confirmingTournamentDelete, setConfirmingTournamentDelete] = useState(false);
+    const [playersOpen, setPlayersOpen] = useState(false);
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
     const { delete: destroy, processing: deleteProcessing } = useForm({});
     const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
@@ -96,6 +100,17 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
         destroy(route('tournament.player.destroy', [tournament.open_id, deletingPlayer.id]), {
             preserveScroll: true,
             onSuccess: () => setDeletingPlayer(null),
+        });
+    };
+
+    const submitDeleteTournament = () => {
+        if (deleteProcessing) {
+            return;
+        }
+
+        destroy(route('tournament.destroy', [tournament.open_id]), {
+            preserveScroll: true,
+            onSuccess: () => setConfirmingTournamentDelete(false),
         });
     };
 
@@ -149,14 +164,7 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                                 Edit
                             </Link>
                         </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={() =>
-                                destroy(route('tournament.destroy', [tournament.id]), {
-                                    preserveScroll: true,
-                                })
-                            }
-                        >
+                        <Button variant="destructive" type="button" onClick={() => setConfirmingTournamentDelete(true)}>
                             Delete
                         </Button>
                     </div>
@@ -214,39 +222,53 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-1">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Players</CardTitle>
-                            <CardDescription>Registered participants in this tournament.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {tournament.players.length === 0 ? (
-                                <p className="text-muted-foreground text-sm">No players yet.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {tournament.players.map((player) => (
-                                        <div key={player.id} className="flex items-center justify-between rounded-md border p-3">
-                                            <div>
-                                                <p className="font-medium">{player.name}</p>
-                                                <p className="text-muted-foreground text-xs">Seed: {player.seed ?? '-'}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant={player.checked_in ? 'default' : 'outline'}>
-                                                    {player.checked_in ? 'Checked In' : 'Pending'}
-                                                </Badge>
-                                                <Button variant="outline" size="sm" onClick={() => setEditingPlayer(player)}>
-                                                    Edit
-                                                </Button>
-                                                <Button variant="destructive" size="sm" onClick={() => setDeletingPlayer(player)}>
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
+                    <Collapsible open={playersOpen} onOpenChange={setPlayersOpen}>
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <CardTitle>Players</CardTitle>
+                                        <CardDescription>Registered participants in this tournament.</CardDescription>
+                                    </div>
+                                    <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" size="sm" type="button" className="gap-2">
+                                            {playersOpen ? 'Hide' : 'Show'}
+                                            <ChevronDownIcon className={`size-4 transition-transform ${playersOpen ? 'rotate-180' : ''}`} />
+                                        </Button>
+                                    </CollapsibleTrigger>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                            </CardHeader>
+                            <CollapsibleContent>
+                                <CardContent>
+                                    {tournament.players.length === 0 ? (
+                                        <p className="text-muted-foreground text-sm">No players yet.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {tournament.players.map((player) => (
+                                                <div key={player.id} className="flex items-center justify-between rounded-md border p-3">
+                                                    <div>
+                                                        <p className="font-medium">{player.name}</p>
+                                                        <p className="text-muted-foreground text-xs">Seed: {player.seed ?? '-'}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant={player.checked_in ? 'default' : 'outline'}>
+                                                            {player.checked_in ? 'Checked In' : 'Pending'}
+                                                        </Badge>
+                                                        <Button variant="outline" size="sm" onClick={() => setEditingPlayer(player)}>
+                                                            Edit
+                                                        </Button>
+                                                        <Button variant="destructive" size="sm" onClick={() => setDeletingPlayer(player)}>
+                                                            Delete
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </CollapsibleContent>
+                        </Card>
+                    </Collapsible>
 
                     <TournamentBracket
                         modeType={tournament.mode_type}
@@ -297,6 +319,26 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                         </DialogClose>
                         <Button variant="destructive" type="button" onClick={submitDeletePlayer} disabled={deleteProcessing}>
                             Delete player
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={confirmingTournamentDelete} onOpenChange={setConfirmingTournamentDelete}>
+                <DialogContent>
+                    <DialogTitle>Delete Tournament</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to delete {tournament.name}? This action cannot be undone.
+                    </DialogDescription>
+
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" type="button" onClick={() => setConfirmingTournamentDelete(false)}>
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button variant="destructive" type="button" onClick={submitDeleteTournament} disabled={deleteProcessing}>
+                            Delete tournament
                         </Button>
                     </DialogFooter>
                 </DialogContent>

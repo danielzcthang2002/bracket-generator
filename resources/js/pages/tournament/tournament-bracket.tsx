@@ -140,6 +140,7 @@ function BracketColumns({
                                     return (
                                         <div key={match.id} className="bg-background rounded-md border p-3 shadow-sm">
                                             <div className="mb-2 flex items-center justify-between">
+                                                <span className="text-xs text-red-400">{match.suggested_play_order}</span>
                                                 <p className="text-xs font-medium">Match #{match.id}</p>
                                                 <div className="flex items-center gap-2">
                                                     <Badge variant="outline" className="text-[10px]">

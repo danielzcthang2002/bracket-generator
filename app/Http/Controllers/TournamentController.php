@@ -184,6 +184,17 @@ class TournamentController extends Controller
             ->with('success', 'Tournament updated successfully.');
     }
 
+    public function destroy(string $openId): RedirectResponse
+    {
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+
+        $tournament->delete();
+
+        return redirect()
+            ->route('tournament.index')
+            ->with('success', 'Tournament deleted successfully.');
+    }
+
     private function validateTournament(Request $request): array
     {
         return $request->validate([
