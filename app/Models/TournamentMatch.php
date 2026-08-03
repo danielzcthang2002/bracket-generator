@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MatchFormatEnum;
 use App\Enums\TournamentMatchStateEnum;
 use Illuminate\Database\Eloquent\Model;
 
@@ -26,6 +27,7 @@ class TournamentMatch extends Model
         'completed_at',
         'player1_is_prereq_match_loser',
         'player2_is_prereq_match_loser',
+        'match_format'
     ];
 
     protected $casts = [
@@ -34,6 +36,7 @@ class TournamentMatch extends Model
         'player2_is_prereq_match_loser' => 'boolean',
         'competed_at' => 'datetime',
         'state' => TournamentMatchStateEnum::class,
+        'match_format' => MatchFormatEnum::class,
     ];
 
     public function tournament()
