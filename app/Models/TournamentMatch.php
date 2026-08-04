@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\MatchFormatEnum;
 use App\Enums\TournamentMatchStateEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TournamentMatch extends Model
 {
@@ -39,22 +41,27 @@ class TournamentMatch extends Model
         'match_format' => MatchFormatEnum::class,
     ];
 
-    public function tournament()
+    public function tournament(): BelongsTo
     {
         return $this->belongsTo(Tournament::class);
     }
 
-    public function player1()
+    public function player1(): BelongsTo
     {
         return $this->belongsTo(Player::class, 'player1_id');
     }
-    public function player2()
+    public function player2(): BelongsTo
     {
         return $this->belongsTo(Player::class, 'player2_id');
     }
 
-    public function matchScores()
+    public function matchScores(): HasMany
     {
         return $this->hasMany(MatchScore::class, 'tournament_match_id');
+    }
+
+    public function participants(): HasMany
+    {
+        return $this->hasMany(TournamentMatchParticipant::class, 'tournament_match_id', 'id');
     }
 }

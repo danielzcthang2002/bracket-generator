@@ -88,7 +88,10 @@ class TournamentController extends Controller
     {
         $tournament = Tournament::query()
             ->withCount(['players', 'matches'])
-            ->with(['players', 'matches' => fn($q) => $q->orderBy('suggested_play_order', 'asc')])
+            ->with([
+                'players',
+                'matches' => fn($q) => $q->orderBy('suggested_play_order', 'asc')->with(['participants.player']),
+            ])
             ->where('open_id', $openId)
             ->firstOrFail();
 
@@ -135,6 +138,20 @@ class TournamentController extends Controller
                         'player2_score' => $match->player2_score,
                         'winner_id' => $match->winner_id,
                         'is_tie' => $match->is_tie,
+                        'participants' => $match->participants->map(function ($participant): array {
+                            return [
+                                'id' => $participant->id,
+                                'player_id' => $participant->player_id,
+                                'position' => $participant->position,
+                                'score' => $participant->score,
+                                'rank' => $participant->rank,
+                                'is_winner' => (bool) $participant->is_winner,
+                                'player' => $participant->player ? [
+                                    'id' => $participant->player->id,
+                                    'name' => $participant->player->name,
+                                ] : null,
+                            ];
+                        })->values(),
                     ];
                 })->values(),
             ],
@@ -359,5 +376,28 @@ class TournamentController extends Controller
         return redirect()
             ->route('tournament.show', $openId)
             ->with('success', 'Match scores updated successfully.');
+    }
+
+    public function updateFfaMatchScores(Request $request, string $openId, int $matchId): RedirectResponse
+    {
+        $validated = $request->validate([
+            'participants' => ['required', 'array', 'min:1'],
+            'participants.*.id' => ['required', 'integer'],
+            'participants.*.rank' => ['nullable', 'integer', 'min:1'],
+            'participants.*.score' => ['nullable', 'numeric'],
+        ]);
+
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
+
+        $service = new TournamentMatchService();
+        $service->updateFfaMatchScores(
+            $match->id,
+            $validated['participants'],
+        );
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', 'Free-for-all match scores updated successfully.');
     }
 }

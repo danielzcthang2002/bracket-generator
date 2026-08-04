@@ -9,6 +9,7 @@ use App\Enums\TournamentModeEnum;
 use App\Enums\TournamentStatus;
 use App\Models\Tournament;
 use App\Services\Bracket\DoubleEliminationService;
+use App\Services\Bracket\FreeForAllService;
 use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
 use App\Services\Bracket\SwissService;
@@ -190,6 +191,9 @@ class TournamentService
         } elseif ($tournament->mode_type === TournamentModeEnum::SWISS) {
             $roundRobinService = new SwissService();
             $roundRobinService->initialize($tournament);
+        } elseif ($tournament->mode_type === TournamentModeEnum::FREE_FOR_ALL) {
+            $freeforallService = new FreeForAllService();
+            $freeforallService->initialize($tournament);
         }
     }
 }

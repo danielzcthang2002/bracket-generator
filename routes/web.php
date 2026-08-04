@@ -24,6 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('{openId}', [TournamentController::class, 'update'])->name('tournament.update');
         Route::get('{openId}', [TournamentController::class, 'show'])->name('tournament.show');
         Route::post('{openId}/matches/{matchId}/score', [TournamentController::class, 'updateMatchScore'])->name('tournament.match.score.update');
+        Route::post('{openId}/matches/{matchId}/ffa-score', [TournamentController::class, 'updateFfaMatchScores'])->name('tournament.match.score.update-ffa');
         Route::post('{openId}/players', [TournamentController::class, 'storePlayer'])->name('tournament.player.store');
         Route::post('{openId}/players/bulk', [TournamentController::class, 'storePlayersBulk'])->name('tournament.player.bulk.store');
         Route::put('{openId}/players/{playerId}', [TournamentController::class, 'updatePlayer'])->name('tournament.player.update');

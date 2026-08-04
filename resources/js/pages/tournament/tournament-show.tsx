@@ -33,6 +33,22 @@ interface TournamentMatch {
     player1_score: string | null;
     player2_score: string | null;
     winner_id: number | null;
+    participants?: TournamentMatchParticipant[];
+}
+
+interface TournamentMatchParticipantPlayer {
+    id: number;
+    name: string;
+}
+
+interface TournamentMatchParticipant {
+    id: number;
+    player_id: number | null;
+    position: number | null;
+    score: string | null;
+    rank: number | null;
+    is_winner: boolean;
+    player: TournamentMatchParticipantPlayer | null;
 }
 
 interface TournamentDetail {
@@ -287,6 +303,7 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                     }
                 }}
                 tournamentOpenId={tournament.open_id}
+                modeType={tournament.mode_type}
                 players={tournament.players}
                 match={scoringMatch}
             />
