@@ -31,7 +31,8 @@ const initialData: TournamentFormData = {
     max_entry: '',
     status: 'pending',
     split_participant: false,
-    participants_per_match: '',
+    ffa_heat_size: '',
+    ffa_advance_count: '',
     head_to_head_count: '',
     rank_by: '',
     points_per_match_win: '',
@@ -39,6 +40,7 @@ const initialData: TournamentFormData = {
     points_per_set_win: '',
     points_per_set_tie: '',
     points_per_bye: '',
+    swiss_rounds: '',
 };
 
 export default function TournamentCreate({ modeOptions, statusOptions }: TournamentCreateProps) {

@@ -46,12 +46,12 @@ return new class extends Migration
             $table->boolean('split_participant')->nullable();
 
             // Free for all columns
-            $table->integer('participants_per_match')->nullable();
+            $table->integer('ffa_heat_size')->nullable();
+            $table->integer('ffa_advance_count')->nullable();
 
             // Round Robin columns
             $table->integer('head_to_head_count')->nullable();
             $table->string('rank_by', 50)->nullable();
-
 
             // Swiss
             $table->decimal('points_per_match_win', 8, 2)->nullable();
@@ -60,8 +60,7 @@ return new class extends Migration
             $table->decimal('points_per_set_tie', 8, 2)->nullable();
             $table->decimal('points_per_bye', 8, 2)->nullable();
             $table->integer('swiss_rounds')->nullable();
-
-
+            
             $table->timestamps();
             $table->softDeletes();
         });

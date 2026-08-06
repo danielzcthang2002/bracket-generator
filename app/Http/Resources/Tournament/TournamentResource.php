@@ -28,7 +28,7 @@ class TournamentResource extends JsonResource
             'max_entry' => $this->max_entry,
             'status' => $this->status,
             'split_participant' => $this->when($this->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION, $this->split_participant),
-            'participants_per_match' => $this->whenNotNull($this->participants_per_match),
+            'ffa_heat_size' => $this->whenNotNull($this->ffa_heat_size),
             'head_to_head_count' => $this->whenNotNull($this->head_to_head_count),
             'rank_by' => $this->whenNotNull($this->rank_by),
             'points_per_match_win' => $this->whenNotNull($this->points_per_match_win),

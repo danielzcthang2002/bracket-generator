@@ -31,7 +31,7 @@ class TournamentStoreRequest extends FormRequest
             'check_in_time' => 'nullable|date|after_or_equal:start_at|before:end_at',
             'max_entry' => 'nullable|integer|min:1',
             'split_participant' => 'nullable|boolean',
-            'participants_per_match' => 'nullable|integer|min:2',
+            'ffa_heat_size' => 'nullable|integer|min:2',
             'head_to_head_count' => 'required_if:tournament_type,round_robin|integer|min:1',
             'rank_by' => 'nullable|string|max:50',
 
