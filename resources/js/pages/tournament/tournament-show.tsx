@@ -33,6 +33,22 @@ interface TournamentMatch {
     player1_score: string | null;
     player2_score: string | null;
     winner_id: number | null;
+    participants?: TournamentMatchParticipant[];
+}
+
+interface TournamentMatchParticipantPlayer {
+    id: number;
+    name: string;
+}
+
+interface TournamentMatchParticipant {
+    id: number;
+    player_id: number | null;
+    position: number | null;
+    score: string | null;
+    rank: number | null;
+    is_winner: boolean;
+    player: TournamentMatchParticipantPlayer | null;
 }
 
 interface TournamentDetail {
@@ -48,9 +64,16 @@ interface TournamentDetail {
     check_in_time: string | null;
     max_entry: number | null;
     split_participant: boolean;
-    participants_per_match: number | null;
+    ffa_heat_size: number | null;
+    ffa_advance_count: number | null;
     head_to_head_count: number | null;
     rank_by: string | null;
+    points_per_match_win: string | null;
+    points_per_match_tie: string | null;
+    points_per_set_win: string | null;
+    points_per_set_tie: string | null;
+    points_per_bye: string | null;
+    swiss_rounds: number | null;
     players_count: number;
     matches_count: number;
     players: TournamentPlayer[];
@@ -91,6 +114,11 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
     const { delete: destroy, processing: deleteProcessing } = useForm({});
     const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
     const { post: postEndTournament, processing: endTournamentProcessing } = useForm();
+    const isDoubleElimination = tournament.mode_type === 'double_elimination';
+    const isFreeForAll = tournament.mode_type === 'free_for_all';
+    const isRoundRobin = tournament.mode_type === 'round_robin';
+    const isSwiss = tournament.mode_type === 'swiss';
+    const showRankAndPoints = isRoundRobin || isSwiss;
 
     const submitDeletePlayer = () => {
         if (!deletingPlayer) {
@@ -213,10 +241,17 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                             <p>Players: {tournament.players_count}</p>
                             <p>Matches: {tournament.matches_count}</p>
                             <p>Max entry: {tournament.max_entry ?? '-'}</p>
-                            <p>Split participants: {tournament.split_participant ? 'Yes' : 'No'}</p>
-                            <p>Participants per match: {tournament.participants_per_match ?? '-'}</p>
-                            <p>Head to head count: {tournament.head_to_head_count ?? '-'}</p>
-                            <p>Rank by: {toDisplayLabel(tournament.rank_by)}</p>
+                            {isDoubleElimination && <p>Split participants: {tournament.split_participant ? 'Yes' : 'No'}</p>}
+                            {isFreeForAll && <p>Participants per match: {tournament.ffa_heat_size ?? '-'}</p>}
+                            {isFreeForAll && <p>Advance per match: {tournament.ffa_advance_count ?? '-'}</p>}
+                            {isRoundRobin && <p>Head to head count: {tournament.head_to_head_count ?? '-'}</p>}
+                            {showRankAndPoints && <p>Rank by: {toDisplayLabel(tournament.rank_by)}</p>}
+                            {showRankAndPoints && <p>Points per match win: {tournament.points_per_match_win ?? '-'}</p>}
+                            {showRankAndPoints && <p>Points per match tie: {tournament.points_per_match_tie ?? '-'}</p>}
+                            {showRankAndPoints && <p>Points per set win: {tournament.points_per_set_win ?? '-'}</p>}
+                            {showRankAndPoints && <p>Points per set tie: {tournament.points_per_set_tie ?? '-'}</p>}
+                            {showRankAndPoints && <p>Points per bye: {tournament.points_per_bye ?? '-'}</p>}
+                            {isSwiss && <p>Swiss rounds: {tournament.swiss_rounds ?? '-'}</p>}
                         </CardContent>
                     </Card>
                 </div>
@@ -287,6 +322,7 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                     }
                 }}
                 tournamentOpenId={tournament.open_id}
+                modeType={tournament.mode_type}
                 players={tournament.players}
                 match={scoringMatch}
             />

@@ -2,18 +2,22 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class MatchScore extends Model
 {
-    public $incrementing = false;
-    protected $primaryKey = null;
+    use HasUuids;
 
     protected $fillable = [
         'tournament_match_id',
         'player_id',
         'set',
         'score',
+    ];
+
+    protected $casts = [
+        'score' => 'decimal:2'
     ];
 
     public function tournamentMatch()

@@ -9,6 +9,7 @@ use App\Enums\TournamentModeEnum;
 use App\Enums\TournamentStatus;
 use App\Models\Tournament;
 use App\Services\Bracket\DoubleEliminationService;
+use App\Services\Bracket\FreeForAllService;
 use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
 use App\Services\Bracket\SwissService;
@@ -40,7 +41,7 @@ class TournamentService
             $tournament->check_in_time = $data['check_in_time'] ?? null;
             $tournament->max_entry = $data['max_entry'] ?? null;
             $tournament->split_participant = $data['split_participant'] ?? false;
-            $tournament->participants_per_match = $data['participants_per_match'] ?? null;
+            $tournament->ffa_heat_size = $data['ffa_heat_size'] ?? null;
             $tournament->head_to_head_count = $data['head_to_head_count'] ?? null;
             $tournament->rank_by = $data['rank_by'] ?? null;
 
@@ -77,7 +78,7 @@ class TournamentService
             $tournament->check_in_time = $data['check_in_time'] ?? $tournament->check_in_time;
             $tournament->max_entry = $data['max_entry'] ?? $tournament->max_entry;
             $tournament->split_participant = $data['split_participant'] ?? $tournament->split_participant;
-            $tournament->participants_per_match = $data['participants_per_match'] ?? $tournament->participants_per_match;
+            $tournament->ffa_heat_size = $data['ffa_heat_size'] ?? $tournament->ffa_heat_size;
             $tournament->head_to_head_count = $data['head_to_head_count'] ?? $tournament->head_to_head_count;
             $tournament->rank_by = $data['rank_by'] ?? $tournament->rank_by;
 
@@ -190,6 +191,9 @@ class TournamentService
         } elseif ($tournament->mode_type === TournamentModeEnum::SWISS) {
             $roundRobinService = new SwissService();
             $roundRobinService->initialize($tournament);
+        } elseif ($tournament->mode_type === TournamentModeEnum::FREE_FOR_ALL) {
+            $freeforallService = new FreeForAllService();
+            $freeforallService->initialize($tournament);
         }
     }
 }

@@ -19,7 +19,8 @@ export interface TournamentFormData {
     max_entry: string;
     status: string;
     split_participant: boolean;
-    participants_per_match: string;
+    ffa_heat_size: string;
+    ffa_advance_count: string;
     head_to_head_count: string;
     rank_by: string;
     points_per_match_win: string;
@@ -27,6 +28,7 @@ export interface TournamentFormData {
     points_per_set_win: string;
     points_per_set_tie: string;
     points_per_bye: string;
+    swiss_rounds: string;
 }
 
 interface TournamentFormProps {
@@ -65,6 +67,12 @@ export default function TournamentForm({
     onSubmit,
     setData,
 }: TournamentFormProps) {
+    const isDoubleElimination = data.mode_type === 'double_elimination';
+    const isFreeForAll = data.mode_type === 'free_for_all';
+    const isRoundRobin = data.mode_type === 'round_robin';
+    const isSwiss = data.mode_type === 'swiss';
+    const showRankAndPoints = isRoundRobin || isSwiss;
+
     return (
         <form onSubmit={onSubmit} className="space-y-4">
             <Card>
@@ -182,113 +190,151 @@ export default function TournamentForm({
                         <InputError message={errors.check_in_time} />
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="participants_per_match">Participants per Match</Label>
-                        <Input
-                            id="participants_per_match"
-                            type="number"
-                            min={2}
-                            value={data.participants_per_match}
-                            onChange={(event) => setData('participants_per_match', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.participants_per_match} />
-                    </div>
+                    {isFreeForAll && (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="ffa_heat_size">Participants per Match</Label>
+                                <Input
+                                    id="ffa_heat_size"
+                                    type="number"
+                                    min={2}
+                                    value={data.ffa_heat_size}
+                                    onChange={(event) => setData('ffa_heat_size', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.ffa_heat_size} />
+                            </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="head_to_head_count">Head to Head Count</Label>
-                        <Input
-                            id="head_to_head_count"
-                            type="number"
-                            min={1}
-                            value={data.head_to_head_count}
-                            onChange={(event) => setData('head_to_head_count', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.head_to_head_count} />
-                    </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="ffa_advance_count">Advance per Match</Label>
+                                <Input
+                                    id="ffa_advance_count"
+                                    type="number"
+                                    min={1}
+                                    value={data.ffa_advance_count}
+                                    onChange={(event) => setData('ffa_advance_count', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.ffa_advance_count} />
+                            </div>
+                        </>
+                    )}
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="rank_by">Rank By</Label>
-                        <Input
-                            id="rank_by"
-                            value={data.rank_by}
-                            onChange={(event) => setData('rank_by', event.target.value)}
-                            disabled={processing}
-                            placeholder="points"
-                        />
-                        <InputError message={errors.rank_by} />
-                    </div>
+                    {isRoundRobin && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="head_to_head_count">Head to Head Count</Label>
+                            <Input
+                                id="head_to_head_count"
+                                type="number"
+                                min={1}
+                                value={data.head_to_head_count}
+                                onChange={(event) => setData('head_to_head_count', event.target.value)}
+                                disabled={processing}
+                            />
+                            <InputError message={errors.head_to_head_count} />
+                        </div>
+                    )}
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="points_per_match_win">Points per Match Win</Label>
-                        <Input
-                            id="points_per_match_win"
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={data.points_per_match_win}
-                            onChange={(event) => setData('points_per_match_win', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.points_per_match_win} />
-                    </div>
+                    {showRankAndPoints && (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="rank_by">Rank By</Label>
+                                <Input
+                                    id="rank_by"
+                                    value={data.rank_by}
+                                    onChange={(event) => setData('rank_by', event.target.value)}
+                                    disabled={processing}
+                                    placeholder="points"
+                                />
+                                <InputError message={errors.rank_by} />
+                            </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="points_per_match_tie">Points per Match Tie</Label>
-                        <Input
-                            id="points_per_match_tie"
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={data.points_per_match_tie}
-                            onChange={(event) => setData('points_per_match_tie', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.points_per_match_tie} />
-                    </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="points_per_match_win">Points per Match Win</Label>
+                                <Input
+                                    id="points_per_match_win"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={data.points_per_match_win}
+                                    onChange={(event) => setData('points_per_match_win', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.points_per_match_win} />
+                            </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="points_per_set_win">Points per Set Win</Label>
-                        <Input
-                            id="points_per_set_win"
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={data.points_per_set_win}
-                            onChange={(event) => setData('points_per_set_win', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.points_per_set_win} />
-                    </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="points_per_match_tie">Points per Match Tie</Label>
+                                <Input
+                                    id="points_per_match_tie"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={data.points_per_match_tie}
+                                    onChange={(event) => setData('points_per_match_tie', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.points_per_match_tie} />
+                            </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="points_per_set_tie">Points per Set Tie</Label>
-                        <Input
-                            id="points_per_set_tie"
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={data.points_per_set_tie}
-                            onChange={(event) => setData('points_per_set_tie', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.points_per_set_tie} />
-                    </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="points_per_set_win">Points per Set Win</Label>
+                                <Input
+                                    id="points_per_set_win"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={data.points_per_set_win}
+                                    onChange={(event) => setData('points_per_set_win', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.points_per_set_win} />
+                            </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="points_per_bye">Points per Bye</Label>
-                        <Input
-                            id="points_per_bye"
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={data.points_per_bye}
-                            onChange={(event) => setData('points_per_bye', event.target.value)}
-                            disabled={processing}
-                        />
-                        <InputError message={errors.points_per_bye} />
-                    </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="points_per_set_tie">Points per Set Tie</Label>
+                                <Input
+                                    id="points_per_set_tie"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={data.points_per_set_tie}
+                                    onChange={(event) => setData('points_per_set_tie', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.points_per_set_tie} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="points_per_bye">Points per Bye</Label>
+                                <Input
+                                    id="points_per_bye"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={data.points_per_bye}
+                                    onChange={(event) => setData('points_per_bye', event.target.value)}
+                                    disabled={processing}
+                                />
+                                <InputError message={errors.points_per_bye} />
+                            </div>
+                        </>
+                    )}
+
+                    {isSwiss && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="swiss_rounds">Swiss Rounds</Label>
+                            <Input
+                                id="swiss_rounds"
+                                type="number"
+                                min={1}
+                                value={data.swiss_rounds}
+                                onChange={(event) => setData('swiss_rounds', event.target.value)}
+                                disabled={processing}
+                            />
+                            <InputError message={errors.swiss_rounds} />
+                        </div>
+                    )}
 
                     <div className="flex items-center gap-2">
                         <Checkbox
@@ -300,15 +346,17 @@ export default function TournamentForm({
                         <Label htmlFor="require_check_in">Require check-in</Label>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="split_participant"
-                            checked={data.split_participant}
-                            onCheckedChange={(checked) => setData('split_participant', Boolean(checked))}
-                            disabled={processing}
-                        />
-                        <Label htmlFor="split_participant">Split participants</Label>
-                    </div>
+                    {isDoubleElimination && (
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="split_participant"
+                                checked={data.split_participant}
+                                onCheckedChange={(checked) => setData('split_participant', Boolean(checked))}
+                                disabled={processing}
+                            />
+                            <Label htmlFor="split_participant">Split participants</Label>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

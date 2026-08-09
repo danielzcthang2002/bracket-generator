@@ -39,7 +39,8 @@ export default function TournamentEdit({ modeOptions, statusOptions, tournament 
         max_entry: tournament.max_entry ?? '',
         status: tournament.status ?? 'pending',
         split_participant: Boolean(tournament.split_participant),
-        participants_per_match: tournament.participants_per_match ?? '',
+        ffa_heat_size: tournament.ffa_heat_size ?? '',
+        ffa_advance_count: tournament.ffa_advance_count ?? '',
         head_to_head_count: tournament.head_to_head_count ?? '',
         rank_by: tournament.rank_by ?? '',
         points_per_match_win: tournament.points_per_match_win ?? '',
@@ -47,6 +48,7 @@ export default function TournamentEdit({ modeOptions, statusOptions, tournament 
         points_per_set_win: tournament.points_per_set_win ?? '',
         points_per_set_tie: tournament.points_per_set_tie ?? '',
         points_per_bye: tournament.points_per_bye ?? '',
+        swiss_rounds: tournament.swiss_rounds ?? '',
     });
 
     const onSubmit = (event: FormEvent<HTMLFormElement>) => {

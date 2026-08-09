@@ -69,7 +69,8 @@ class TournamentController extends Controller
             'max_entry' => $validated['max_entry'] ?? null,
             'status' => $validated['status'],
             'split_participant' => $validated['split_participant'] ?? false,
-            'participants_per_match' => $validated['participants_per_match'] ?? null,
+            'ffa_heat_size' => $validated['ffa_heat_size'] ?? null,
+            'ffa_advance_count' => $validated['ffa_advance_count'] ?? null,
             'head_to_head_count' => $validated['head_to_head_count'] ?? null,
             'rank_by' => $validated['rank_by'] ?? null,
             'points_per_match_win' => $validated['points_per_match_win'] ?? null,
@@ -77,6 +78,7 @@ class TournamentController extends Controller
             'points_per_set_win' => $validated['points_per_set_win'] ?? null,
             'points_per_set_tie' => $validated['points_per_set_tie'] ?? null,
             'points_per_bye' => $validated['points_per_bye'] ?? null,
+            'swiss_rounds' => $validated['swiss_rounds'] ?? null,
         ]);
 
         return redirect()
@@ -88,7 +90,10 @@ class TournamentController extends Controller
     {
         $tournament = Tournament::query()
             ->withCount(['players', 'matches'])
-            ->with(['players', 'matches' => fn($q) => $q->orderBy('suggested_play_order', 'asc')])
+            ->with([
+                'players',
+                'matches' => fn($q) => $q->orderBy('suggested_play_order', 'asc')->with(['participants.player']),
+            ])
             ->where('open_id', $openId)
             ->firstOrFail();
 
@@ -106,9 +111,16 @@ class TournamentController extends Controller
                 'check_in_time' => $tournament->check_in_time,
                 'max_entry' => $tournament->max_entry,
                 'split_participant' => $tournament->split_participant,
-                'participants_per_match' => $tournament->participants_per_match,
+                'ffa_heat_size' => $tournament->ffa_heat_size,
+                'ffa_advance_count' => $tournament->ffa_advance_count,
                 'head_to_head_count' => $tournament->head_to_head_count,
                 'rank_by' => $tournament->rank_by,
+                'points_per_match_win' => $tournament->points_per_match_win,
+                'points_per_match_tie' => $tournament->points_per_match_tie,
+                'points_per_set_win' => $tournament->points_per_set_win,
+                'points_per_set_tie' => $tournament->points_per_set_tie,
+                'points_per_bye' => $tournament->points_per_bye,
+                'swiss_rounds' => $tournament->swiss_rounds,
                 'players_count' => $tournament->players_count,
                 'matches_count' => $tournament->matches_count,
                 'players' => $tournament->players->map(function ($player): array {
@@ -135,6 +147,20 @@ class TournamentController extends Controller
                         'player2_score' => $match->player2_score,
                         'winner_id' => $match->winner_id,
                         'is_tie' => $match->is_tie,
+                        'participants' => $match->participants->map(function ($participant): array {
+                            return [
+                                'id' => $participant->id,
+                                'player_id' => $participant->player_id,
+                                'position' => $participant->position,
+                                'score' => $participant->score,
+                                'rank' => $participant->rank,
+                                'is_winner' => (bool) $participant->is_winner,
+                                'player' => $participant->player ? [
+                                    'id' => $participant->player->id,
+                                    'name' => $participant->player->name,
+                                ] : null,
+                            ];
+                        })->values(),
                     ];
                 })->values(),
             ],
@@ -160,7 +186,8 @@ class TournamentController extends Controller
                 'max_entry' => $tournament->max_entry,
                 'status' => $tournament->status?->value,
                 'split_participant' => (bool) $tournament->split_participant,
-                'participants_per_match' => $tournament->participants_per_match,
+                'ffa_heat_size' => $tournament->ffa_heat_size,
+                'ffa_advance_count' => $tournament->ffa_advance_count,
                 'head_to_head_count' => $tournament->head_to_head_count,
                 'rank_by' => $tournament->rank_by,
                 'points_per_match_win' => $tournament->points_per_match_win,
@@ -168,6 +195,7 @@ class TournamentController extends Controller
                 'points_per_set_win' => $tournament->points_per_set_win,
                 'points_per_set_tie' => $tournament->points_per_set_tie,
                 'points_per_bye' => $tournament->points_per_bye,
+                'swiss_rounds' => $tournament->swiss_rounds,
             ],
         ]);
     }
@@ -208,7 +236,8 @@ class TournamentController extends Controller
             'max_entry' => ['nullable', 'integer', 'min:2'],
             'status' => ['required', Rule::in(TournamentStatus::options())],
             'split_participant' => ['sometimes', 'boolean'],
-            'participants_per_match' => ['nullable', 'integer', 'min:2'],
+            'ffa_heat_size' => ['nullable', 'integer', 'min:2'],
+            'ffa_advance_count' => ['nullable', 'integer', 'min:1'],
             'head_to_head_count' => ['nullable', 'integer', 'min:1'],
             'rank_by' => ['nullable', 'string', 'max:50'],
             'points_per_match_win' => ['nullable', 'numeric', 'min:0'],
@@ -216,6 +245,7 @@ class TournamentController extends Controller
             'points_per_set_win' => ['nullable', 'numeric', 'min:0'],
             'points_per_set_tie' => ['nullable', 'numeric', 'min:0'],
             'points_per_bye' => ['nullable', 'numeric', 'min:0'],
+            'swiss_rounds' => ['nullable', 'integer', 'min:1'],
         ]);
     }
 
@@ -359,5 +389,28 @@ class TournamentController extends Controller
         return redirect()
             ->route('tournament.show', $openId)
             ->with('success', 'Match scores updated successfully.');
+    }
+
+    public function updateFfaMatchScores(Request $request, string $openId, int $matchId): RedirectResponse
+    {
+        $validated = $request->validate([
+            'participants' => ['required', 'array', 'min:1'],
+            'participants.*.id' => ['required', 'integer'],
+            'participants.*.rank' => ['nullable', 'integer', 'min:1'],
+            'participants.*.score' => ['nullable', 'numeric'],
+        ]);
+
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
+
+        $service = new TournamentMatchService();
+        $service->updateFfaMatchScores(
+            $match->id,
+            $validated['participants'],
+        );
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', 'Free-for-all match scores updated successfully.');
     }
 }

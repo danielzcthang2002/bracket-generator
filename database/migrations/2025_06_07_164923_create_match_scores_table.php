@@ -12,15 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('match_scores', function (Blueprint $table) {
+            $table->uuid('id');
             $table->foreignId('tournament_match_id')
                 ->constrained('tournament_matches', 'id')
                 ->onDelete('cascade');
             $table->foreignId('player_id')
                 ->constrained('players', 'id')
                 ->onDelete('cascade');
-            $table->integer('set')->nullable();
-            $table->integer('score')->default(0);
+            $table->integer('set')->default(1);
+            $table->decimal('score', 8, 2)->default(0);
             $table->timestamps();
+            $table->unique(['tournament_match_id', 'player_id', 'set']);
         });
     }
 

@@ -36,6 +36,7 @@ return new class extends Migration
             $table->boolean('player1_is_prereq_match_loser')->default(false);
             $table->boolean('player2_is_prereq_match_loser')->default(false);
 
+            $table->string('match_format')->default('duel');
 
             $table->timestamps();
         });

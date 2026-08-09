@@ -7,6 +7,21 @@ interface TournamentBracketPlayer {
     name: string;
 }
 
+interface TournamentBracketParticipantPlayer {
+    id: number;
+    name: string;
+}
+
+interface TournamentBracketParticipant {
+    id: number;
+    player_id: number | null;
+    position: number | null;
+    score: string | null;
+    rank: number | null;
+    is_winner: boolean;
+    player: TournamentBracketParticipantPlayer | null;
+}
+
 export interface TournamentBracketMatch {
     id: number;
     state: string | null;
@@ -22,6 +37,7 @@ export interface TournamentBracketMatch {
     player1_score: string | null;
     player2_score: string | null;
     winner_id: number | null;
+    participants?: TournamentBracketParticipant[];
 }
 
 interface TournamentBracketProps {
@@ -101,15 +117,29 @@ function getPlayerLabel(
     return 'TBD';
 }
 
+function getParticipantLabel(participant: TournamentBracketParticipant) {
+    if (participant.player) {
+        return participant.player.name;
+    }
+
+    if (participant.player_id) {
+        return `Player #${participant.player_id}`;
+    }
+
+    return 'TBD';
+}
+
 function BracketColumns({
     rounds,
     playerById,
     isLowerBracket,
+    modeType,
     onAddScore,
 }: {
     rounds: BracketRound[];
     playerById: Record<number, TournamentBracketPlayer>;
     isLowerBracket: boolean;
+    modeType: string | null;
     onAddScore: (match: TournamentBracketMatch) => void;
 }) {
     if (rounds.length === 0) {
@@ -136,6 +166,26 @@ function BracketColumns({
                                     const player1IsWinner = match.player1_id !== null && match.winner_id === match.player1_id;
                                     const player2IsWinner = match.player2_id !== null && match.winner_id === match.player2_id;
                                     const isTie = match.is_tie === true;
+                                    const participants = [...(match.participants ?? [])].sort((left, right) => {
+                                        const leftRank = left.rank ?? Number.MAX_SAFE_INTEGER;
+                                        const rightRank = right.rank ?? Number.MAX_SAFE_INTEGER;
+
+                                        if (leftRank !== rightRank) {
+                                            return leftRank - rightRank;
+                                        }
+
+                                        const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
+                                        const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
+
+                                        if (leftPosition !== rightPosition) {
+                                            return leftPosition - rightPosition;
+                                        }
+
+                                        return left.id - right.id;
+                                    });
+                                    const showParticipants = participants.length > 0;
+                                    const isFreeForAll = modeType === 'free_for_all';
+                                    const canAddScore = isFreeForAll ? participants.length > 0 : match.player1_id !== null && match.player2_id !== null;
 
                                     return (
                                         <div key={match.id} className="bg-background rounded-md border p-3 shadow-sm">
@@ -151,7 +201,7 @@ function BracketColumns({
                                                         size="sm"
                                                         className="h-6 px-2 text-[10px]"
                                                         onClick={() => onAddScore(match)}
-                                                        disabled={match.player1_id === null || match.player2_id === null}
+                                                        disabled={!canAddScore}
                                                         type="button"
                                                     >
                                                         Add score
@@ -159,32 +209,52 @@ function BracketColumns({
                                                 </div>
                                             </div>
 
-                                            <div className="space-y-1.5">
-                                                <div className="flex items-center justify-between rounded border px-2 py-1 text-xs">
-                                                    <span className={player1IsWinner ? 'font-semibold text-blue-400' : ''}>
-                                                        {getPlayerLabel(
-                                                            playerById,
-                                                            match.player1_id,
-                                                            match.player1_prereq_match_id,
-                                                            match.player1_is_prereq_match_loser,
-                                                        )}
-                                                    </span>
-                                                    <span className="text-muted-foreground">{match.player1_score ?? '-'}</span>
+                                            {showParticipants ? (
+                                                <div className="space-y-1.5">
+                                                    {participants.map((participant) => (
+                                                        <div key={participant.id} className="flex items-center justify-between rounded border px-2 py-1 text-xs">
+                                                            <span className={participant.is_winner ? 'font-semibold text-blue-400' : ''}>
+                                                                <span className="mr-2 text-muted-foreground">
+                                                                    {participant.rank !== null ? `#${participant.rank}` : 'TBD'}
+                                                                </span>
+                                                                {getParticipantLabel(participant)}
+                                                            </span>
+                                                            <span className="text-muted-foreground">{participant.score ?? '-'}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                <div className="flex items-center justify-between rounded border px-2 py-1 text-xs">
-                                                    <span className={player2IsWinner ? 'font-semibold text-blue-400' : ''}>
-                                                        {getPlayerLabel(
-                                                            playerById,
-                                                            match.player2_id,
-                                                            match.player2_prereq_match_id,
-                                                            match.player2_is_prereq_match_loser,
-                                                        )}
-                                                    </span>
-                                                    <span className="text-muted-foreground">{match.player2_score ?? '-'}</span>
+                                            ) : (
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center justify-between rounded border px-2 py-1 text-xs">
+                                                        <span className={player1IsWinner ? 'font-semibold text-blue-400' : ''}>
+                                                            {getPlayerLabel(
+                                                                playerById,
+                                                                match.player1_id,
+                                                                match.player1_prereq_match_id,
+                                                                match.player1_is_prereq_match_loser,
+                                                            )}
+                                                        </span>
+                                                        <span className="text-muted-foreground">{match.player1_score ?? '-'}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between rounded border px-2 py-1 text-xs">
+                                                        <span className={player2IsWinner ? 'font-semibold text-blue-400' : ''}>
+                                                            {getPlayerLabel(
+                                                                playerById,
+                                                                match.player2_id,
+                                                                match.player2_prereq_match_id,
+                                                                match.player2_is_prereq_match_loser,
+                                                            )}
+                                                        </span>
+                                                        <span className="text-muted-foreground">{match.player2_score ?? '-'}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
 
-                                            {isTie ? (
+                                            {showParticipants ? (
+                                                <p className="text-muted-foreground mt-2 text-[11px]">
+                                                    Participants: {participants.length}
+                                                </p>
+                                            ) : isTie ? (
                                                 <p className="text-muted-foreground mt-2 text-[11px]">Result: Tie</p>
                                             ) : match.winner_id ? (
                                                 <p className="text-muted-foreground mt-2 text-[11px]">
@@ -248,13 +318,25 @@ export function TournamentBracket({ modeType, players, matches, onAddScore }: To
                     <>
                         <div className="space-y-2">
                             <p className="text-sm font-semibold">Upper Bracket</p>
-                            <BracketColumns rounds={upperRounds} playerById={playerById} isLowerBracket={false} onAddScore={onAddScore} />
+                            <BracketColumns
+                                rounds={upperRounds}
+                                playerById={playerById}
+                                isLowerBracket={false}
+                                modeType={modeType}
+                                onAddScore={onAddScore}
+                            />
                         </div>
 
                         {isDoubleElimination ? (
                             <div className="space-y-2 border-t pt-4">
                                 <p className="text-sm font-semibold">Lower Bracket</p>
-                                <BracketColumns rounds={lowerRounds} playerById={playerById} isLowerBracket={true} onAddScore={onAddScore} />
+                                <BracketColumns
+                                    rounds={lowerRounds}
+                                    playerById={playerById}
+                                    isLowerBracket={true}
+                                    modeType={modeType}
+                                    onAddScore={onAddScore}
+                                />
                             </div>
                         ) : null}
                     </>

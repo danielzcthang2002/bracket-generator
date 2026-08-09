@@ -7,19 +7,22 @@ namespace App\Services;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Models\TournamentMatchParticipant;
 use App\Services\Bracket\DoubleEliminationService;
+use App\Services\Bracket\FreeForAllService;
 use App\Services\Bracket\RoundRobinService;
 use App\Services\Bracket\SingleEliminationService;
 use App\Services\Bracket\SwissService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class TournamentMatchService
 {
     private SingleEliminationService $singleEliminationService;
     private DoubleEliminationService $doubleEliminationService;
     private RoundRobinService $roundRobinService;
-
     private SwissService $swissService;
+    private FreeForAllService $freeforallService;
 
     public function __construct()
     {
@@ -27,6 +30,7 @@ class TournamentMatchService
         $this->doubleEliminationService = new DoubleEliminationService();
         $this->roundRobinService = new RoundRobinService();
         $this->swissService = new SwissService();
+        $this->freeforallService = new FreeForAllService();
     }
 
     /**
@@ -50,6 +54,8 @@ class TournamentMatchService
                 return $this->roundRobinService->initialize($tournament);
             case 'swiss':
                 return $this->swissService->initialize($tournament);
+            case 'free_for_all':
+                return $this->freeforallService->initialize($tournament);
             default:
                 throw new \Exception('Unsupported tournament mode: ' . $tournamentMode);
         }
@@ -147,5 +153,95 @@ class TournamentMatchService
 
 
         return $match;
+    }
+
+    /**
+     * Updates scores for a free-for-all match by writing the final participant
+     * order directly onto the participant rows.
+     *
+     * @param array<int, array<string, mixed>> $participantsData
+     */
+    public function updateFfaMatchScores(int $matchId, array $participantsData): TournamentMatch
+    {
+        $match = TournamentMatch::query()->with('participants')->findOrFail($matchId);
+        $participants = $match->participants;
+
+        if ($participants->isEmpty()) {
+            throw new \InvalidArgumentException('Free-for-all match must have participants before scores can be submitted.');
+        }
+
+        $participantsById = $participants->keyBy('id');
+        $submittedParticipantIds = collect($participantsData)
+            ->pluck('id')
+            ->map(fn($participantId) => (int) $participantId)
+            ->values();
+
+        if ($submittedParticipantIds->count() !== $participants->count() || $submittedParticipantIds->diff($participantsById->keys())->isNotEmpty()) {
+            throw new \InvalidArgumentException('Submitted participants must match the match roster exactly.');
+        }
+
+        $normalizedParticipants = collect($participantsData)->values()->map(function (array $participantData, int $index) use ($participantsById): array {
+            $participantId = (int) ($participantData['id'] ?? 0);
+            $participant = $participantsById->get($participantId);
+
+            if ($participant === null) {
+                throw new \InvalidArgumentException('Submitted participants must match the match roster exactly.');
+            }
+
+            $rank = $participantData['rank'] ?? null;
+            $rank = $rank === '' || $rank === null ? null : (int) $rank;
+
+            $score = $participantData['score'] ?? null;
+            $score = $score === '' || $score === null ? null : (float) $score;
+
+            return [
+                'participant' => $participant,
+                'rank' => $rank,
+                'score' => $score,
+                'index' => $index,
+            ];
+        });
+
+        $normalizedParticipants = $normalizedParticipants->map(function (array $participantData): array {
+            $participantData['rank'] = $participantData['rank'] ?? ($participantData['index'] + 1);
+            unset($participantData['index']);
+
+            return $participantData;
+        });
+
+        $submittedRanks = $normalizedParticipants->pluck('rank');
+
+        if ($submittedRanks->contains(fn($rank) => !is_int($rank) || $rank < 1)) {
+            throw new \InvalidArgumentException('Each participant must have a valid rank.');
+        }
+
+        if ($submittedRanks->unique()->count() !== $participants->count()) {
+            throw new \InvalidArgumentException('Each participant rank must be unique.');
+        }
+
+        DB::transaction(function () use ($normalizedParticipants): void {
+            foreach ($normalizedParticipants as $participantData) {
+                /** @var TournamentMatchParticipant $participant */
+                $participant = $participantData['participant'];
+
+                $participant->update([
+                    'rank' => $participantData['rank'],
+                    'score' => $participantData['score'],
+                    'is_winner' => $participantData['rank'] === 1,
+                ]);
+            }
+        });
+
+        $match->forceFill([
+            'state' => TournamentMatchStateEnum::COMPLETE,
+            'is_tie' => false,
+            'winner_id' => null,
+            'loser_id' => null,
+        ]);
+        $match->save();
+
+        $this->generateMatches($match->tournament_id);
+
+        return $match->refresh()->load(['participants.player']);
     }
 }
