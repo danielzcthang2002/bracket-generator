@@ -7,19 +7,61 @@ use App\Models\Tournament;
 use App\Services\TournamentMatchService;
 
 dataset('double elimination custom winners bracket cases', [
-    '8 players, custom 4-2-1' => [
+    '2 players' => [
+        'playerCount' => 2,
+        'expectedTotalMatchCount' => 2,
+        'expectedWinnersRounds' => [1 => 1, 2 => 1],
+        'expectedLosersRounds' => [],
+        'expectedWinnersRoundOnePlayerCount' => 2,
+    ],
+    '3 players' => [
+        'playerCount' => 3,
+        'expectedTotalMatchCount' => 4,
+        'expectedWinnersRounds' => [1 => 1, 2 => 1, 3 => 1],
+        'expectedLosersRounds' => [-1 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 2,
+    ],
+    '4 players' => [
+        'playerCount' => 4,
+        'expectedTotalMatchCount' => 6,
+        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+    ],
+    '5 players' => [
+        'playerCount' => 5,
+        'expectedTotalMatchCount' => 8,
+        'expectedWinnersRounds' => [1 => 1, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 1, -3 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 2,
+    ],
+    '6 players' => [
+        'playerCount' => 6,
+        'expectedTotalMatchCount' => 10,
+        'expectedWinnersRounds' => [1 => 2, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 1, -3 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+    ],
+    '7 players' => [
+        'playerCount' => 7,
+        'expectedTotalMatchCount' => 12,
+        'expectedWinnersRounds' => [1 => 3, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 2, -3 => 1, -4 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 6,
+    ],
+    '8 players' => [
         'playerCount' => 8,
         'expectedTotalMatchCount' => 14,
         'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
         'expectedLosersRounds' => [-1 => 2, -2 => 2, -3 => 1, -4 => 1],
         'expectedWinnersRoundOnePlayerCount' => 8,
     ],
-    '4 players, custom list [2,1]' => [
-        'playerCount' => 4,
-        'expectedTotalMatchCount' => 6,
-        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
-        'expectedLosersRounds' => [-1 => 1, -2 => 1],
-        'expectedWinnersRoundOnePlayerCount' => 4,
+    '9 players' => [
+        'playerCount' => 9,
+        'expectedTotalMatchCount' => 16,
+        'expectedWinnersRounds' => [1 => 1, 2 => 4, 3 => 2, 4 => 1, 5 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 2,
     ],
 ]);
 
@@ -60,7 +102,7 @@ it('generates a double elimination bracket with a custom winners bracket shape',
 
     $winnersRoundOneParticipants = $matches
         ->where('round', 1)
-        ->flatMap(fn ($match) => [$match->player1_id, $match->player2_id])
+        ->flatMap(fn($match) => [$match->player1_id, $match->player2_id])
         ->filter()
         ->sort()
         ->values()
@@ -68,10 +110,9 @@ it('generates a double elimination bracket with a custom winners bracket shape',
 
     expect($winnersRoundOneParticipants)->toBe(
         collect(range(1, $expectedWinnersRoundOnePlayerCount))
-            ->map(fn (int $index) => $players[$index - 1]->id)
+            ->map(fn(int $index) => $players[$index - 1]->id)
             ->sort()
             ->values()
             ->all()
     );
 })->with('double elimination custom winners bracket cases');
-
