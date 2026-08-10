@@ -6,24 +6,17 @@ use App\Models\Player;
 use App\Models\Tournament;
 use App\Services\TournamentMatchService;
 
-dataset('double elimination custom winners bracket cases', [
-    '8 players, custom 4-2-1' => [
-        'playerCount' => 8,
-        'expectedTotalMatchCount' => 14,
-        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
-        'expectedLosersRounds' => [-1 => 2, -2 => 2, -3 => 1, -4 => 1],
-        'expectedWinnersRoundOnePlayerCount' => 8,
-    ],
-    '4 players, custom list [2,1]' => [
-        'playerCount' => 4,
-        'expectedTotalMatchCount' => 6,
+dataset('double elimination split participant cases', [
+    '6 players' => [
+        'playerCount' => 6,
+        'expectedTotalMatchCount' => 8,
         'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
-        'expectedLosersRounds' => [-1 => 1, -2 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 1, -3 => 1],
         'expectedWinnersRoundOnePlayerCount' => 4,
     ],
 ]);
 
-it('generates a double elimination bracket with a custom winners bracket shape', function (
+it('generates a split participant double elimination bracket', function (
     int $playerCount,
     int $expectedTotalMatchCount,
     array $expectedWinnersRounds,
@@ -31,11 +24,11 @@ it('generates a double elimination bracket with a custom winners bracket shape',
     int $expectedWinnersRoundOnePlayerCount,
 ) {
     $tournament = Tournament::create([
-        'name' => 'Double Elimination Custom WB Test ' . $playerCount,
+        'name' => 'Double Elimination Split Participant Test ' . $playerCount,
         'open_id' => Tournament::generateOpenId(),
         'mode_type' => TournamentModeEnum::DOUBLE_ELIMINATION,
         'status' => TournamentStatus::OPEN,
-        'split_participant' => false,
+        'split_participant' => true,
     ]);
 
     $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): Player {
@@ -67,11 +60,6 @@ it('generates a double elimination bracket with a custom winners bracket shape',
         ->all();
 
     expect($winnersRoundOneParticipants)->toBe(
-        collect(range(1, $expectedWinnersRoundOnePlayerCount))
-            ->map(fn (int $index) => $players[$index - 1]->id)
-            ->sort()
-            ->values()
-            ->all()
+        $players->take($expectedWinnersRoundOnePlayerCount)->pluck('id')->sort()->values()->all()
     );
-})->with('double elimination custom winners bracket cases');
-
+})->with('double elimination split participant cases');
