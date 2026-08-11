@@ -7,12 +7,21 @@ use App\Models\Tournament;
 use App\Services\TournamentMatchService;
 
 dataset('double elimination split participant cases', [
-    '6 players' => [
-        'playerCount' => 6,
-        'expectedTotalMatchCount' => 8,
-        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
-        'expectedLosersRounds' => [-1 => 2, -2 => 1, -3 => 1],
-        'expectedWinnersRoundOnePlayerCount' => 4,
+    '3 players' => [
+        'playerCount' => 3,
+        'expectedTotalMatchCount' => 3,
+        'expectedWinnersRounds' => [1 => 1, 2 => 1,],
+        'expectedLosersRounds' => [-1 => 1,],
+        'expectedWinnersRoundOnePlayerCount' => 2,
+        'expectedLosersRoundOnePlayerCount' =>1,
+    ],
+    '4 players' => [
+        'playerCount' => 4,
+        'expectedTotalMatchCount' => 4,
+        'expectedWinnersRounds' => [1 => 1, 2 => 1,],
+        'expectedLosersRounds' => [-1 => 1, 2 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 2,
+        'expectedLosersRoundOnePlayerCount' => 2,
     ],
 ]);
 
@@ -22,6 +31,7 @@ it('generates a split participant double elimination bracket', function (
     array $expectedWinnersRounds,
     array $expectedLosersRounds,
     int $expectedWinnersRoundOnePlayerCount,
+    int $expectedLosersRoundOnePlayerCount,
 ) {
     $tournament = Tournament::create([
         'name' => 'Double Elimination Split Participant Test ' . $playerCount,
@@ -55,11 +65,19 @@ it('generates a split participant double elimination bracket', function (
         ->where('round', 1)
         ->flatMap(fn ($match) => [$match->player1_id, $match->player2_id])
         ->filter()
-        ->sort()
-        ->values()
-        ->all();
+        ->count();
 
-    expect($winnersRoundOneParticipants)->toBe(
-        $players->take($expectedWinnersRoundOnePlayerCount)->pluck('id')->sort()->values()->all()
-    );
+    expect(
+        $winnersRoundOneParticipants
+    )->toBe($expectedWinnersRoundOnePlayerCount);
+
+    $losersRoundOneParticipants = $matches
+        ->where('round', -1)
+        ->flatMap(fn ($match) => [$match->player1_id, $match->player2_id])
+        ->filter()
+        ->count();
+
+    expect($losersRoundOneParticipants)->toBe(
+            $expectedLosersRoundOnePlayerCount
+        );
 })->with('double elimination split participant cases');

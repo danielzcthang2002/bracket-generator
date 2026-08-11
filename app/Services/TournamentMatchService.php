@@ -15,6 +15,7 @@ use App\Services\Bracket\SingleEliminationService;
 use App\Services\Bracket\SwissService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class TournamentMatchService
 {
@@ -110,6 +111,7 @@ class TournamentMatchService
             $totalPlayer2Score += $player2_score;
 
             $scoreUpsertData[] = [
+                'id' => Str::uuid(),
                 'tournament_match_id' => $matchId,
                 'player_id' => $player1Id,
                 'set' => $key + 1,
@@ -118,6 +120,7 @@ class TournamentMatchService
                 'updated_at' => now(),
             ];
             $scoreUpsertData[] = [
+                'id' => Str::uuid(),
                 'tournament_match_id' => $matchId,
                 'player_id' => $player2Id,
                 'set' => $key + 1,

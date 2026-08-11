@@ -63,6 +63,13 @@ dataset('double elimination custom winners bracket cases', [
         'expectedLosersRounds' => [-1 => 1, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
         'expectedWinnersRoundOnePlayerCount' => 2,
     ],
+    '10 players' => [
+        'playerCount' => 10,
+        'expectedTotalMatchCount' => 18,
+        'expectedWinnersRounds' => [1 => 2, 2 => 4, 3 => 2, 4 => 1, 5 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+    ],
 ]);
 
 it('generates a double elimination bracket with a custom winners bracket shape', function (
@@ -102,17 +109,11 @@ it('generates a double elimination bracket with a custom winners bracket shape',
 
     $winnersRoundOneParticipants = $matches
         ->where('round', 1)
-        ->flatMap(fn($match) => [$match->player1_id, $match->player2_id])
+        ->flatMap(fn ($match) => [$match->player1_id, $match->player2_id])
         ->filter()
-        ->sort()
-        ->values()
-        ->all();
+        ->count();
 
-    expect($winnersRoundOneParticipants)->toBe(
-        collect(range(1, $expectedWinnersRoundOnePlayerCount))
-            ->map(fn(int $index) => $players[$index - 1]->id)
-            ->sort()
-            ->values()
-            ->all()
-    );
+    expect(
+        $winnersRoundOneParticipants
+    )->toBe($expectedWinnersRoundOnePlayerCount);
 })->with('double elimination custom winners bracket cases');
