@@ -8,7 +8,7 @@ use App\Models\Tournament;
 
 abstract class ModeService
 {
-    public function initialize(Tournament $tournament){}
+    abstract public function initialize(Tournament $tournament);
     /**
      * Calculate the total number of rounds based on the number of players.
      *
@@ -41,4 +41,12 @@ abstract class ModeService
         // Round numbers start from 1 (first round) to N (final)
         return (int) pow(2, $numRounds - $roundNumber);
     }
+}
+
+
+class FinalRankContext
+{
+    public function __construct(
+        public readonly array $data = [],
+    ) {}
 }
