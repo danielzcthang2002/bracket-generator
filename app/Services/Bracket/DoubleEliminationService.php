@@ -139,19 +139,9 @@ class DoubleEliminationService extends ModeService
             $lbRoundCounter = 1;
             $wb1Losers = $wbRoundMatches[1] ?? [];
 
-            // Size LB round 1 off the *actual* number of entrants (bottom players +
-            // WB round 1 losers), not off topPlayerCount alone. topPlayerCount/2 only
-            // happens to be correct when the split is roughly even; for a lopsided
-            // split (e.g. 39 players -> 32 top / 7 bottom) it forces far more slots
-            // than there are real entrants to fill them, leaving bye slots with no
-            // WB1 loser left in the queue to fill them - producing matches with
-            // neither a player nor a prereq, which can never resolve.
-            $lb1MatchCount = (int) ceil((count($bottomPlayers) + count($wb1Losers)) / 2);
-
             [$round1Matches, $carryEntrants] = $this->buildSplitLbRoundOne(
                 $tournament,
                 $bottomPlayers,
-                $lb1MatchCount,
                 $lbRoundCounter,
                 $playOrder,
                 $wb1Losers,
@@ -362,102 +352,82 @@ class DoubleEliminationService extends ModeService
 
     /**
      * @return array{0: TournamentMatch[], 1: array} [matches, carryEntrants]
-     *   carryEntrants is a list of ['raw' => id] or ['match' => id, 'loser' => true]
-     *   entrants that couldn't be paired this round (because their bye-side
-     *   opponent ran out of WB1 losers to fill it) and must advance untouched
-     *   into LB round 2's population, instead of being stuck in a dead match.
+     *
+     * If there are at least as many WB round-1 losers as bottom players, each
+     * bottom player faces a WB1 loser directly (1:1); any excess WB1 losers
+     * carry forward untouched to LB round 2.
+     *
+     * Otherwise (more bottom players than WB1 losers), bottom players pair
+     * against each other instead - WB1 losers are entirely deferred to LB
+     * round 2 rather than being force-fit into byes. An odd bottom player out
+     * carries forward raw.
      */
     private function buildSplitLbRoundOne(
         Tournament $tournament,
         $bottomPlayers,
-        int $matchNumber,
         int $round,
         int &$playOrder,
         array $wb1Losers,
     ): array {
-        $paired = $this->filterPlayersByRound($bottomPlayers, $matchNumber);
-        $queue = collect($wb1Losers);
+        $bottomIds = $bottomPlayers->pluck('id')->values();
+        $bottomCount = $bottomIds->count();
+        $wbLoserCount = count($wb1Losers);
 
         $matches = [];
         $carry = [];
-        $player1_id = null;
 
-        foreach ($paired as $player) {
-            if ($player1_id === null) {
-                $player1_id = $player['id'];
-                continue;
+        if ($wbLoserCount >= $bottomCount) {
+            for ($i = 0; $i < $bottomCount; $i++) {
+                $prereqMatchId = $wb1Losers[$i]->id;
+
+                $match = TournamentMatch::updateOrCreate([
+                    'tournament_id' => $tournament->id,
+                    'round' => -$round,
+                    'suggested_play_order' => $playOrder,
+                ], [
+                    'player1_id' => $this->resolvePlayer($bottomIds[$i], null, false),
+                    'player2_id' => $this->resolvePlayer(null, $prereqMatchId, true),
+                    'player1_prereq_match_id' => null,
+                    'player2_prereq_match_id' => $prereqMatchId,
+                    'player1_is_prereq_match_loser' => false,
+                    'player2_is_prereq_match_loser' => true,
+                ]);
+
+                $this->rememberOutcome($match);
+                $matches[] = $match;
+                $playOrder++;
             }
 
-            $player2_id = $player['id'];
-            $isBye1 = $player1_id == 0;
-            $isBye2 = $player2_id == 0;
-
-            $player1PreReq = null;
-            $player2PreReq = null;
-
-            if ($isBye1) {
-                $player1PreReq = $queue->first()?->id;
-                $queue = $queue->slice(1)->values();
+            for ($i = $bottomCount; $i < $wbLoserCount; $i++) {
+                $carry[] = ['match' => $wb1Losers[$i]->id, 'loser' => true];
             }
-            if ($isBye2) {
-                $player2PreReq = $queue->first()?->id;
-                $queue = $queue->slice(1)->values();
-            }
+        } else {
+            for ($i = 0; $i + 1 < $bottomCount; $i += 2) {
+                $match = TournamentMatch::updateOrCreate([
+                    'tournament_id' => $tournament->id,
+                    'round' => -$round,
+                    'suggested_play_order' => $playOrder,
+                ], [
+                    'player1_id' => $this->resolvePlayer($bottomIds[$i], null, false),
+                    'player2_id' => $this->resolvePlayer($bottomIds[$i + 1], null, false),
+                    'player1_prereq_match_id' => null,
+                    'player2_prereq_match_id' => null,
+                    'player1_is_prereq_match_loser' => false,
+                    'player2_is_prereq_match_loser' => false,
+                ]);
 
-            // A bye slot that couldn't be filled (queue ran dry) has no
-            // opponent at all this round. Don't create a match with a
-            // permanently empty slot - whichever side DOES have an entrant
-            // skips this round and carries forward untouched to LB round 2.
-            if ($isBye1 && $player1PreReq === null) {
-                if (!$isBye2) {
-                    $carry[] = ['raw' => $player2_id];
-                } elseif ($player2PreReq !== null) {
-                    $carry[] = ['match' => $player2PreReq, 'loser' => true];
-                }
-                $player1_id = null;
-                continue;
-            }
-            if ($isBye2 && $player2PreReq === null) {
-                if (!$isBye1) {
-                    $carry[] = ['raw' => $player1_id];
-                } elseif ($player1PreReq !== null) {
-                    $carry[] = ['match' => $player1PreReq, 'loser' => true];
-                }
-                $player1_id = null;
-                continue;
+                $this->rememberOutcome($match);
+                $matches[] = $match;
+                $playOrder++;
             }
 
-            $resolvedP1 = $player1PreReq !== null
-                ? $this->resolvePlayer(null, $player1PreReq, true)
-                : $this->resolvePlayer($player1_id, null, false);
-            $resolvedP2 = $player2PreReq !== null
-                ? $this->resolvePlayer(null, $player2PreReq, true)
-                : $this->resolvePlayer($player2_id, null, false);
+            if ($bottomCount % 2 === 1) {
+                $carry[] = ['raw' => $bottomIds[$bottomCount - 1]];
+            }
 
-            $match = TournamentMatch::updateOrCreate([
-                'tournament_id' => $tournament->id,
-                'round' => -$round,
-                'suggested_play_order' => $playOrder,
-            ], [
-                'player1_id' => $resolvedP1,
-                'player2_id' => $resolvedP2,
-                'player1_prereq_match_id' => $player1PreReq,
-                'player2_prereq_match_id' => $player2PreReq,
-                'player1_is_prereq_match_loser' => $player1PreReq !== null,
-                'player2_is_prereq_match_loser' => $player2PreReq !== null,
-            ]);
-
-            $this->rememberOutcome($match);
-            $matches[] = $match;
-
-            $playOrder++;
-            $player1_id = null;
-        }
-
-        // Anything still sitting in the queue is a WB1 loser that never got
-        // used as a bye filler at all - carry it forward too.
-        foreach ($queue as $leftoverMatch) {
-            $carry[] = ['match' => $leftoverMatch->id, 'loser' => true];
+            foreach ($wb1Losers as $m) {
+                $carry[] = ['match' => $m->id, 'loser' => true];
+            }
         }
 
         return [$matches, $carry];
@@ -549,33 +519,6 @@ class DoubleEliminationService extends ModeService
         }
 
         return $this->resolvePlayer(null, $entrant['match'], $entrant['loser'] ?? false);
-    }
-
-    private function createLbMatch(
-        Tournament $tournament,
-        int $round,
-        int $playOrder,
-        int $prereq1,
-        bool $isLoser1,
-        int $prereq2,
-        bool $isLoser2,
-    ): TournamentMatch {
-        $match = TournamentMatch::updateOrCreate([
-            'tournament_id' => $tournament->id,
-            'round' => -$round, // losers bracket rounds are negative: -1, -2, -3...
-            'suggested_play_order' => $playOrder,
-        ], [
-            'player1_id' => $this->resolvePlayer(null, $prereq1, $isLoser1),
-            'player2_id' => $this->resolvePlayer(null, $prereq2, $isLoser2),
-            'player1_prereq_match_id' => $prereq1,
-            'player2_prereq_match_id' => $prereq2,
-            'player1_is_prereq_match_loser' => $isLoser1,
-            'player2_is_prereq_match_loser' => $isLoser2,
-        ]);
-
-        $this->rememberOutcome($match);
-
-        return $match;
     }
 
     /**

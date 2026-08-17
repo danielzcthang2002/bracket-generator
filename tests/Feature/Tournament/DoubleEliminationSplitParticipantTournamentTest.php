@@ -13,7 +13,7 @@ dataset('double elimination split participant cases', [
         'expectedWinnersRounds' => [1 => 1, 2 => 1,],
         'expectedLosersRounds' => [-1 => 1,],
         'expectedWinnersRoundOnePlayerCount' => 2,
-        'expectedLosersRoundOnePlayerCount' =>1,
+        'expectedLosersRoundOnePlayerCount' => 1,
     ],
     '4 players' => [
         'playerCount' => 4,
@@ -21,6 +21,78 @@ dataset('double elimination split participant cases', [
         'expectedWinnersRounds' => [1 => 1, 2 => 1,],
         'expectedLosersRounds' => [-1 => 1, 2 => 1],
         'expectedWinnersRoundOnePlayerCount' => 2,
+        'expectedLosersRoundOnePlayerCount' => 2,
+    ],
+    '5 players' => [
+        'playerCount' => 5,
+        'expectedTotalMatchCount' => 7,
+        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 1, -3 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+        'expectedLosersRoundOnePlayerCount' => 1,
+    ],
+    '6 players' => [
+        'playerCount' => 6,
+        'expectedTotalMatchCount' => 8,
+        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 1, -3 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+        'expectedLosersRoundOnePlayerCount' => 2,
+    ],
+    '7 players' => [
+        'playerCount' => 7,
+        'expectedTotalMatchCount' => 9,
+        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 2, -3 => 1, -4 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+        'expectedLosersRoundOnePlayerCount' => 2,
+    ],
+    '8 players' => [
+        'playerCount' => 8,
+        'expectedTotalMatchCount' => 10,
+        'expectedWinnersRounds' => [1 => 2, 2 => 1, 3 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 2, -3 => 1, -4 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 4,
+        'expectedLosersRoundOnePlayerCount' => 4,
+    ],
+    '9 players' => [
+        'playerCount' => 9,
+        'expectedTotalMatchCount' => 15,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
+        'expectedLosersRoundOnePlayerCount' => 1,
+    ],
+    '10 players' => [
+        'playerCount' => 10,
+        'expectedTotalMatchCount' => 16,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
+        'expectedLosersRoundOnePlayerCount' => 2,
+    ],
+    '11 players' => [
+        'playerCount' => 11,
+        'expectedTotalMatchCount' => 17,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 3, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
+        'expectedLosersRoundOnePlayerCount' => 3,
+    ],
+    '12 players' => [
+        'playerCount' => 12,
+        'expectedTotalMatchCount' => 18,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 4, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
+        'expectedLosersRoundOnePlayerCount' => 4,
+    ],
+    '13 players' => [
+        'playerCount' => 13,
+        'expectedTotalMatchCount' => 19,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 4, -3 => 2, -4 => 2, -5 => 1, -6 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
         'expectedLosersRoundOnePlayerCount' => 2,
     ],
 ]);
@@ -63,7 +135,7 @@ it('generates a split participant double elimination bracket', function (
 
     $winnersRoundOneParticipants = $matches
         ->where('round', 1)
-        ->flatMap(fn ($match) => [$match->player1_id, $match->player2_id])
+        ->flatMap(fn($match) => [$match->player1_id, $match->player2_id])
         ->filter()
         ->count();
 
@@ -73,11 +145,11 @@ it('generates a split participant double elimination bracket', function (
 
     $losersRoundOneParticipants = $matches
         ->where('round', -1)
-        ->flatMap(fn ($match) => [$match->player1_id, $match->player2_id])
+        ->flatMap(fn($match) => [$match->player1_id, $match->player2_id])
         ->filter()
         ->count();
 
     expect($losersRoundOneParticipants)->toBe(
-            $expectedLosersRoundOnePlayerCount
-        );
+        $expectedLosersRoundOnePlayerCount
+    );
 })->with('double elimination split participant cases');

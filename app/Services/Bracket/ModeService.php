@@ -42,11 +42,3 @@ abstract class ModeService
         return (int) pow(2, $numRounds - $roundNumber);
     }
 }
-
-
-class FinalRankContext
-{
-    public function __construct(
-        public readonly array $data = [],
-    ) {}
-}
