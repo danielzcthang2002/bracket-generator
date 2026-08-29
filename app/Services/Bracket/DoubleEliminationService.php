@@ -221,14 +221,15 @@ class DoubleEliminationService extends ModeService
                 );
 
                 if (count($population) > count($incoming)) {
-                    // Population needs to shrink before it can merge 1:1
-                    // with the incoming WB losers.
                     $lbRoundCounter++;
+                    $diff = count($population) - count($incoming);
                     [$shrinkMatches, $survivors, $carry] = $this->buildLbRound(
                         $tournament,
                         $lbRoundCounter,
                         $playOrder,
-                        $population
+                        $population,
+                        [],
+                        $diff
                     );
                     $lbRoundMatches[$lbRoundCounter] = $shrinkMatches;
                     $validMatchIds = [...$validMatchIds, ...array_map(fn($m) => $m->id, $shrinkMatches)];
@@ -402,14 +403,24 @@ class DoubleEliminationService extends ModeService
                 $carry[] = ['match' => $wb1Losers[$i]->id, 'loser' => true];
             }
         } else {
-            for ($i = 0; $i + 1 < $bottomCount; $i += 2) {
+            // Only shrink the bottom population enough to match wbLoserCount -
+            // pairing everyone would over-shrink it. Create just
+            // ($bottomCount - $wbLoserCount) matches from the front of the
+            // bottom list (capped at floor($bottomCount / 2), since you can't
+            // form more pairs than that), then carry every other bottom
+            // player forward raw, along with all WB1 losers deferred to
+            // LB round 2.
+            $diff = $bottomCount - $wbLoserCount; // > 0 here
+            $pairs = min(intdiv($bottomCount, 2), $diff);
+
+            for ($i = 0; $i < $pairs; $i++) {
                 $match = TournamentMatch::updateOrCreate([
                     'tournament_id' => $tournament->id,
                     'round' => -$round,
                     'suggested_play_order' => $playOrder,
                 ], [
-                    'player1_id' => $this->resolvePlayer($bottomIds[$i], null, false),
-                    'player2_id' => $this->resolvePlayer($bottomIds[$i + 1], null, false),
+                    'player1_id' => $this->resolvePlayer($bottomIds[$i * 2], null, false),
+                    'player2_id' => $this->resolvePlayer($bottomIds[$i * 2 + 1], null, false),
                     'player1_prereq_match_id' => null,
                     'player2_prereq_match_id' => null,
                     'player1_is_prereq_match_loser' => false,
@@ -421,8 +432,11 @@ class DoubleEliminationService extends ModeService
                 $playOrder++;
             }
 
-            if ($bottomCount % 2 === 1) {
-                $carry[] = ['raw' => $bottomIds[$bottomCount - 1]];
+            // Every bottom player not placed into a round-1 match carries
+            // forward raw (there may be more than one, unlike the old
+            // "one odd player out" assumption).
+            for ($i = $pairs * 2; $i < $bottomCount; $i++) {
+                $carry[] = ['raw' => $bottomIds[$i]];
             }
 
             foreach ($wb1Losers as $m) {
@@ -449,7 +463,7 @@ class DoubleEliminationService extends ModeService
      *
      * @return array{0: TournamentMatch[], 1: array, 2: array} [matches, winnerEntrants, carryEntrants]
      */
-    private function buildLbRound(Tournament $tournament, int $round, int &$playOrder, array $primary, array $secondary = []): array
+    private function buildLbRound(Tournament $tournament, int $round, int &$playOrder, array $primary, array $secondary = [], ?int $maxPairs = null): array
     {
         $matches = [];
         $winners = [];
@@ -457,14 +471,26 @@ class DoubleEliminationService extends ModeService
 
         if (empty($secondary)) {
             $count = count($primary);
-            for ($i = 0; $i + 1 < $count; $i += 2) {
-                $match = $this->createEntrantMatch($tournament, $round, $playOrder, $primary[$i], $primary[$i + 1]);
+            $pairs = intdiv($count, 2);
+            if ($maxPairs !== null) {
+                // Cap how far this "shrink" round reduces the population -
+                // e.g. shrink just enough to match an upcoming WB-losers
+                // batch size, rather than always pairing everyone off.
+                $pairs = min($pairs, $maxPairs);
+            }
+
+            for ($i = 0; $i < $pairs; $i++) {
+                $match = $this->createEntrantMatch($tournament, $round, $playOrder, $primary[$i * 2], $primary[$i * 2 + 1]);
                 $playOrder++;
                 $matches[] = $match;
                 $winners[] = ['match' => $match->id, 'loser' => false];
             }
-            if ($count % 2 === 1) {
-                $carry[] = $primary[$count - 1];
+
+            // Anything past the paired prefix carries forward untouched -
+            // this can be more than one entrant when $maxPairs caps the
+            // shrink below a full pairing.
+            for ($i = $pairs * 2; $i < $count; $i++) {
+                $carry[] = $primary[$i];
             }
         } else {
             $pairCount = min(count($primary), count($secondary));

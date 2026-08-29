@@ -95,6 +95,38 @@ dataset('double elimination split participant cases', [
         'expectedWinnersRoundOnePlayerCount' => 8,
         'expectedLosersRoundOnePlayerCount' => 2,
     ],
+    '14 players' => [
+        'playerCount' => 14,
+        'expectedTotalMatchCount' => 20,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 2, -2 => 4, -3 => 2, -4 => 2, -5 => 1, -6 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
+        'expectedLosersRoundOnePlayerCount' => 4,
+    ],
+    '15 players' => [
+        'playerCount' => 15,
+        'expectedTotalMatchCount' => 21,
+        'expectedWinnersRounds' => [1 => 4, 2 => 2, 3 => 1, 4 => 1],
+        'expectedLosersRounds' => [-1 => 3, -2 => 4, -3 => 2, -4 => 2, -5 => 1, -6 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 8,
+        'expectedLosersRoundOnePlayerCount' => 6,
+    ],
+    '17 players' => [
+        'playerCount' => 17,
+        'expectedTotalMatchCount' => 31,
+        'expectedWinnersRounds' => [1 => 8, 2 => 4, 3 => 2, 4 => 1, 5 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 4, -3 => 4, -4 => 2, -5 => 2, -6 => 1, -7 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 16,
+        'expectedLosersRoundOnePlayerCount' => 1,
+    ],
+    '23 players' => [
+        'playerCount' => 23,
+        'expectedTotalMatchCount' => 37,
+        'expectedWinnersRounds' => [1 => 8, 2 => 4, 3 => 2, 4 => 1, 5 => 1],
+        'expectedLosersRounds' => [-1 => 7, -2 => 4, -3 => 4, -4 => 2, -5 => 2, -6 => 1, -7 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 16,
+        'expectedLosersRoundOnePlayerCount' => 7,
+    ],
 ]);
 
 it('generates a split participant double elimination bracket', function (

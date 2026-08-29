@@ -70,6 +70,20 @@ dataset('double elimination custom winners bracket cases', [
         'expectedLosersRounds' => [-1 => 2, -2 => 2, -3 => 2, -4 => 1, -5 => 1],
         'expectedWinnersRoundOnePlayerCount' => 4,
     ],
+    '13 players' => [
+        'playerCount' => 13,
+        'expectedTotalMatchCount' => 24,
+        'expectedWinnersRounds' => [1 => 5, 2 => 4, 3 => 2, 4 => 1, 5 => 1],
+        'expectedLosersRounds' => [-1 => 1, -2 => 4, -3 => 2, -4 => 2, -5 => 1, -6 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 10,
+    ],
+    '23 players' => [
+        'playerCount' => 23,
+        'expectedTotalMatchCount' => 44,
+        'expectedWinnersRounds' => [1 => 7, 2 => 8, 3 => 4, 4 => 2, 5 => 1, 6 => 1],
+        'expectedLosersRounds' => [-1 => 7, -2 => 4, -3 => 4, -4 => 2, -5 => 2, -6 => 1, -7 => 1],
+        'expectedWinnersRoundOnePlayerCount' => 14,
+    ],
 ]);
 
 it('generates a double elimination bracket with a custom winners bracket shape', function (
