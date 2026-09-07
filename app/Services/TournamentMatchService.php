@@ -8,6 +8,8 @@ use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\TournamentMatchParticipant;
+use App\Services\Bracket\Contracts\HasMode;
+use App\Services\Bracket\Contracts\ModeResolver;
 use App\Services\Bracket\DoubleEliminationService;
 use App\Services\Bracket\FreeForAllService;
 use App\Services\Bracket\RoundRobinService;
@@ -19,20 +21,9 @@ use Illuminate\Support\Str;
 
 class TournamentMatchService
 {
-    private SingleEliminationService $singleEliminationService;
-    private DoubleEliminationService $doubleEliminationService;
-    private RoundRobinService $roundRobinService;
-    private SwissService $swissService;
-    private FreeForAllService $freeforallService;
-
-    public function __construct()
-    {
-        $this->singleEliminationService = new SingleEliminationService();
-        $this->doubleEliminationService = new DoubleEliminationService();
-        $this->roundRobinService = new RoundRobinService();
-        $this->swissService = new SwissService();
-        $this->freeforallService = new FreeForAllService();
-    }
+    public function __construct(
+        private ModeResolver $resolver,
+    ) {}
 
     /**
      * Generates matches for a given tournament based on its mode.
@@ -46,20 +37,7 @@ class TournamentMatchService
 
         $tournamentMode = $tournament->mode_type->value;
 
-        switch ($tournamentMode) {
-            case 'single_elimination':
-                return $this->singleEliminationService->initialize($tournament);
-            case 'double_elimination':
-                return $this->doubleEliminationService->initialize($tournament);
-            case 'round_robin':
-                return $this->roundRobinService->initialize($tournament);
-            case 'swiss':
-                return $this->swissService->initialize($tournament);
-            case 'free_for_all':
-                return $this->freeforallService->initialize($tournament);
-            default:
-                throw new \Exception('Unsupported tournament mode: ' . $tournamentMode);
-        }
+        return $this->resolver->resolve($tournamentMode)->initialize($tournament);
     }
 
     /**

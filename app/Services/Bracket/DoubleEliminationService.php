@@ -7,9 +7,10 @@ namespace App\Services\Bracket;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Services\Bracket\Contracts\HasMode;
 use App\Services\Bracket\Trait\SplitParticipant;
 
-class DoubleEliminationService extends ModeService
+class DoubleEliminationService extends ModeService implements HasMode
 {
     use SplitParticipant;
 

@@ -7,8 +7,10 @@ namespace App\Services\Bracket;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Services\Bracket\Contracts\HasMode;
+use Illuminate\Support\Collection;
 
-class SingleEliminationService extends ModeService
+class SingleEliminationService extends ModeService implements HasMode
 {
     public function initialize(Tournament $tournament)
     {
@@ -219,5 +221,107 @@ class SingleEliminationService extends ModeService
         $byes = $nextPowerOfTwo - $numPlayers;
 
         return ($numPlayers - $byes) / 2;
+    }
+
+    /**
+     * Preview the bracket shape without persisting anything.
+     * Safe to call repeatedly while seeds are still being adjusted.
+     */
+    public function previewBracket(Tournament $tournament): array
+    {
+        $players = $tournament->players()
+            ->checkedIn()
+            // NOTE: this mirrors initialize()'s ordering. If you have a
+            // dedicated `seed` column, order by that instead of `id` so
+            // re-seeding actually changes the preview.
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $numPlayers = $players->count();
+
+        if ($numPlayers < 2) {
+            return [];
+        }
+
+        $numRounds = $this->calculateTotalRound($numPlayers);
+        $rounds = [];
+
+        for ($i = 1; $i <= $numRounds; $i++) {
+            $matchNumber = $i === 1
+                ? (int) $this->firstRoundMatches($numPlayers)
+                : (int) $this->calculateMatchesCountInRound($numRounds, $i);
+
+            $rounds[] = $this->filterPlayersByRound($players, $matchNumber);
+        }
+
+        $suggestedPlayOrder = 1;
+        $preReqQueue = collect();   // holds suggested_play_order of matches waiting to feed a slot
+        $matchesByOrder = [];       // suggested_play_order => preview row, for label lookups
+        $preview = [];
+
+        foreach ($rounds as $roundKey => $round) {
+            $roundNumber = $roundKey + 1;
+            $preview[$roundNumber] = [];
+
+            $player1 = null;
+            $player2 = null;
+
+            foreach ($round as $player) {
+                if ($player1 === null) {
+                    $player1 = $player;
+                } elseif ($player2 === null) {
+                    $player2 = $player;
+                }
+
+                if ($player1 !== null && $player2 !== null) {
+                    $slot1 = $this->resolvePreviewSlot($player1, $preReqQueue);
+                    $slot2 = $this->resolvePreviewSlot($player2, $preReqQueue);
+
+                    $matchPreview = [
+                        'round' => $roundNumber,
+                        'suggested_play_order' => $suggestedPlayOrder,
+                        'player1' => $slot1,
+                        'player2' => $slot2,
+                    ];
+
+                    $matchesByOrder[$suggestedPlayOrder] = $matchPreview;
+                    $preview[$roundNumber][] = $matchPreview;
+
+                    // this match's winner feeds the next round's placeholder slot
+                    $preReqQueue->push($suggestedPlayOrder);
+
+                    $player1 = null;
+                    $player2 = null;
+                    $suggestedPlayOrder++;
+                }
+            }
+        }
+
+        return $preview;
+    }
+
+    /**
+     * Turn a raw seeding-round entry into either a real player slot
+     * or a "winner of match X" placeholder slot.
+     */
+    private function resolvePreviewSlot(array $player, Collection &$preReqQueue): array
+    {
+        if ($player['id'] == 0) {
+            $prereqOrder = $preReqQueue->first();
+            $preReqQueue = $preReqQueue->slice(1)->values();
+
+            return [
+                'type' => 'tbd',
+                'label' => $prereqOrder ? "Winner of Match {$prereqOrder}" : 'TBD',
+                'prereq_suggested_play_order' => $prereqOrder,
+            ];
+        }
+
+        return [
+            'type' => 'player',
+            'id' => $player['id'],
+            'name' => $player['name'] ?? null,
+            'seed' => $player['seed'] ?? null,
+        ];
     }
 }

@@ -7,6 +7,7 @@ namespace App\Services\Bracket;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Services\Bracket\Contracts\HasMode;
 use Illuminate\Support\Collection;
 
 /**
@@ -28,7 +29,7 @@ use Illuminate\Support\Collection;
  *    points_per_set_tie / points_per_bye, with head-to-head record among
  *    tied players as the tiebreaker, falling back to seed.
  */
-class RoundRobinService extends ModeService
+class RoundRobinService extends ModeService implements HasMode
 {
     public function initialize(Tournament $tournament)
     {

@@ -8,6 +8,7 @@ use App\Enums\TournamentMatchStateEnum;
 use App\Enums\TournamentModeEnum;
 use App\Enums\TournamentStatus;
 use App\Models\Tournament;
+use App\Services\Bracket\Contracts\ModeResolver;
 use App\Services\Bracket\DoubleEliminationService;
 use App\Services\Bracket\FreeForAllService;
 use App\Services\Bracket\RoundRobinService;
@@ -20,6 +21,9 @@ use Illuminate\Support\Facades\DB;
 class TournamentService
 {
 
+    public function __construct(
+        private ModeResolver $resolver,
+    ) {}
 
     /**
      * @param array $data
@@ -145,8 +149,9 @@ class TournamentService
             $tournament = Tournament::query()
                 ->where('open_id', $openId)->firstOrFail();
             $tournament->status = TournamentStatus::STARTED;
+            $mode = $tournament->mode_type->value;
             $tournament->save();
-            $this->handleTournamentModeSpecificLogic($tournament);
+            $this->resolver->resolve($mode)->initialize($tournament);
             DB::commit();
             return $tournament;
         } catch (Exception $th) {
@@ -174,26 +179,6 @@ class TournamentService
         } catch (Exception $th) {
             DB::rollBack();
             throw new Exception('Failed to end tournament: ' . $th->getMessage());
-        }
-    }
-
-    private function handleTournamentModeSpecificLogic(Tournament $tournament): void
-    {
-        if ($tournament->mode_type === TournamentModeEnum::SINGLE_ELIMINATION) {
-            $singleEliminationService = new SingleEliminationService();
-            $singleEliminationService->initialize($tournament);
-        } elseif ($tournament->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION) {
-            $doubleEliminationService = new DoubleEliminationService();
-            $doubleEliminationService->initialize($tournament);
-        } elseif ($tournament->mode_type === TournamentModeEnum::ROUND_ROBIN) {
-            $roundRobinService = new RoundRobinService();
-            $roundRobinService->initialize($tournament);
-        } elseif ($tournament->mode_type === TournamentModeEnum::SWISS) {
-            $roundRobinService = new SwissService();
-            $roundRobinService->initialize($tournament);
-        } elseif ($tournament->mode_type === TournamentModeEnum::FREE_FOR_ALL) {
-            $freeforallService = new FreeForAllService();
-            $freeforallService->initialize($tournament);
         }
     }
 }

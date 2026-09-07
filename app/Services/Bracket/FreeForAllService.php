@@ -8,6 +8,7 @@ use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\TournamentMatchParticipant;
+use App\Services\Bracket\Contracts\HasMode;
 use Illuminate\Support\Collection;
 
 /**
@@ -68,7 +69,7 @@ use Illuminate\Support\Collection;
  * hasMany(TournamentMatchParticipant::class) relation. Add it if it isn't
  * there yet - everything below depends on it.
  */
-class FreeForAllService extends ModeService
+class FreeForAllService extends ModeService implements HasMode
 {
     private const DEFAULT_HEAT_SIZE = 4;
     private const DEFAULT_ADVANCE_RATIO = 0.5;

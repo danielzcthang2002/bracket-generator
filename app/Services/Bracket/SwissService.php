@@ -7,6 +7,7 @@ namespace App\Services\Bracket;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Services\Bracket\Contracts\HasMode;
 use Illuminate\Support\Collection;
 
 /**
@@ -50,7 +51,7 @@ use Illuminate\Support\Collection;
  * rounds needed to separate a field of n players - but can be overridden
  * per tournament via a `swiss_rounds` column/attribute if one exists.
  */
-class SwissService extends ModeService
+class SwissService extends ModeService implements HasMode
 {
     public function initialize(Tournament $tournament)
     {
