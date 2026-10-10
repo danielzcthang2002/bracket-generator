@@ -181,7 +181,7 @@ it('builds round 1 heats via snake draft off seed order', function (int $playerC
     [$tournament, $players] = ffaTournament($playerCount, $heatSize);
     $resolvedHeatSize = max(2, $heatSize ?? 4);
 
-    $matches = (new TournamentMatchService())->generateMatches($tournament->id);
+    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
 
     $expectedHeats = ffaBuildHeats($players->pluck('id')->all(), $resolvedHeatSize);
 
@@ -217,7 +217,7 @@ it('advances heats round by round and assigns exact final ranks', function (int 
     $advanceCount = ffaAdvanceCountFor($resolvedHeatSize);
 
     $reference = ffaSimulate($players->pluck('id')->all(), $resolvedHeatSize, $advanceCount);
-    $service = new TournamentMatchService();
+    $service = app(TournamentMatchService::class);
 
     foreach ($reference['rounds'] as $roundIndex => $expectedHeats) {
         $round = $roundIndex + 1;

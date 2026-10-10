@@ -156,7 +156,7 @@ it('generates a single elimination bracket', function (
         ]);
     });
 
-    $matches = (new TournamentMatchService())->generateMatches($tournament->id);
+    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($expectedTotalMatchCount);
 

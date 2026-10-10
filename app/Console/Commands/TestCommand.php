@@ -28,7 +28,7 @@ class TestCommand extends Command
      */
     public function handle()
     {
-        $service = new TournamentMatchService();
+        $service = app(TournamentMatchService::class);
 
         $result =  $service->generateMatches(1);
 

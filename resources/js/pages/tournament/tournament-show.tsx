@@ -82,6 +82,27 @@ interface TournamentDetail {
 
 interface TournamentShowProps {
     tournament: TournamentDetail;
+    bracketPreview: Record<string, PreviewMatch[]> | PreviewMatch[][];
+}
+
+interface PreviewSlot {
+    type: 'player' | 'tbd';
+    id?: number;
+    name?: string | null;
+    seed?: number | null;
+    label?: string;
+}
+
+interface PreviewMatch {
+    round: number;
+    suggested_play_order: number;
+    player1?: PreviewSlot;
+    player2?: PreviewSlot;
+    participants?: PreviewSlot[];
+}
+
+function previewSlotLabel(slot: PreviewSlot) {
+    return slot.type === 'player' ? (slot.name ?? `Player #${slot.id}`) : (slot.label ?? 'TBD');
 }
 
 function toDisplayLabel(value: string | null) {
@@ -103,7 +124,7 @@ function toDisplayDate(value: string | null) {
     return new Date(value).toLocaleString();
 }
 
-export default function TournamentShow({ tournament }: TournamentShowProps) {
+export default function TournamentShow({ tournament, bracketPreview }: TournamentShowProps) {
     const [openAddPlayerModal, setOpenAddPlayerModal] = useState(false);
     const [openBulkAddPlayerModal, setOpenBulkAddPlayerModal] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
@@ -119,6 +140,45 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
     const isRoundRobin = tournament.mode_type === 'round_robin';
     const isSwiss = tournament.mode_type === 'swiss';
     const showRankAndPoints = isRoundRobin || isSwiss;
+    const previewRounds = Object.entries(bracketPreview ?? {})
+        .map(([round, matches]) => ({ round: Number(round), matches }))
+        .filter(({ matches }) => matches.length > 0);
+    const upperPreviewRounds = previewRounds.filter(({ round }) => round > 0).sort((a, b) => a.round - b.round);
+    const lowerPreviewRounds = previewRounds.filter(({ round }) => round < 0).sort((a, b) => Math.abs(a.round) - Math.abs(b.round));
+    const previewNote = isSwiss
+        ? 'Only round 1 can be predicted. Later pairings depend on results and standings.'
+        : isFreeForAll
+          ? 'Only round 1 can be predicted. Later heats depend on finishing positions.'
+          : isDoubleElimination
+            ? 'A bracket reset final is added only if the lower bracket finalist wins the first final.'
+            : 'Based on the currently checked-in players, ordered by registration ID.';
+
+    const renderPreviewRounds = (rounds: typeof previewRounds) => (
+        <div className="flex min-w-max items-start gap-4 pb-1">
+            {rounds.map(({ round, matches }) => (
+                <div key={round} className="flex w-64 flex-col gap-2">
+                    <p className="px-1 text-sm font-medium">{round < 0 ? `Lower Round ${Math.abs(round)}` : `Round ${round}`}</p>
+                    {matches.map((match) => (
+                        <div key={match.suggested_play_order} className="bg-background space-y-2 rounded-md border p-3 text-sm shadow-sm">
+                            <p className="text-muted-foreground text-xs">Match {match.suggested_play_order}</p>
+                            {match.participants ? (
+                                match.participants.map((slot, index) => (
+                                    <p key={slot.id ?? index} className="rounded border px-2 py-1">
+                                        {previewSlotLabel(slot)}
+                                    </p>
+                                ))
+                            ) : (
+                                <>
+                                    <p className="rounded border px-2 py-1">{match.player1 ? previewSlotLabel(match.player1) : 'TBD'}</p>
+                                    <p className="rounded border px-2 py-1">{match.player2 ? previewSlotLabel(match.player2) : 'TBD'}</p>
+                                </>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
 
     const submitDeletePlayer = () => {
         if (!deletingPlayer) {
@@ -186,7 +246,11 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                             tournamentOpenId={tournament.open_id}
                         />
                         {tournament.status == 'pending' && <Button onClick={startTournament}>Start tournament</Button>}
-                        {tournament.status == 'started' && <Button variant="destructive" onClick={endTournament}>End tournament</Button>}
+                        {tournament.status == 'started' && (
+                            <Button variant="destructive" onClick={endTournament}>
+                                End tournament
+                            </Button>
+                        )}
                         <Button asChild>
                             <Link href={`/tournaments/${tournament.open_id}/edit`} prefetch>
                                 Edit
@@ -305,6 +369,30 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
                         </Card>
                     </Collapsible>
 
+                    {tournament.status !== 'started' && tournament.status !== 'ended' && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Bracket preview</CardTitle>
+                                <CardDescription>{previewNote}</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {previewRounds.length === 0 ? (
+                                    <p className="text-muted-foreground text-sm">Check in at least two players to preview the bracket.</p>
+                                ) : (
+                                    <div className="space-y-5">
+                                        <div className="overflow-x-auto">{renderPreviewRounds(upperPreviewRounds)}</div>
+                                        {lowerPreviewRounds.length > 0 && (
+                                            <div className="border-t pt-4">
+                                                <p className="mb-2 text-sm font-semibold">Lower bracket</p>
+                                                <div className="overflow-x-auto">{renderPreviewRounds(lowerPreviewRounds)}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <TournamentBracket
                         modeType={tournament.mode_type}
                         players={tournament.players}
@@ -363,9 +451,7 @@ export default function TournamentShow({ tournament }: TournamentShowProps) {
             <Dialog open={confirmingTournamentDelete} onOpenChange={setConfirmingTournamentDelete}>
                 <DialogContent>
                     <DialogTitle>Delete Tournament</DialogTitle>
-                    <DialogDescription>
-                        Are you sure you want to delete {tournament.name}? This action cannot be undone.
-                    </DialogDescription>
+                    <DialogDescription>Are you sure you want to delete {tournament.name}? This action cannot be undone.</DialogDescription>
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>

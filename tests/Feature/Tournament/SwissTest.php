@@ -109,7 +109,7 @@ it('generates round 1 via fold seeding', function (
 ) {
     [$tournament, $players] = swissTournament($playerCount);
 
-    $matches = (new TournamentMatchService())->generateMatches($tournament->id);
+    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($hasBye ? $expectedMatchCount + 1 : $expectedMatchCount);
     expect($matches->where('round', 1))->toHaveCount($hasBye ? $expectedMatchCount + 1 : $expectedMatchCount);
@@ -160,7 +160,7 @@ it('advances one round at a time until final ranks are assigned', function (
     bool $allowsForcedRematch,
 ) {
     [$tournament, $players] = swissTournament($playerCount);
-    $service = new TournamentMatchService();
+    $service = app(TournamentMatchService::class);
     $isOdd = $playerCount % 2 === 1;
 
     $seenPairKeys = [];

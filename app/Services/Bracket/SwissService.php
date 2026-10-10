@@ -53,6 +53,37 @@ use Illuminate\Support\Collection;
  */
 class SwissService extends ModeService implements HasMode
 {
+    public function previewBracket(Tournament $tournament): array
+    {
+        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        if ($players->count() < 2) {
+            return [];
+        }
+
+        [$pairs, $byePlayerId] = $this->pairFold($players);
+        $byId = $players->keyBy('id');
+        $preview = [1 => []];
+        $playOrder = 1;
+        foreach ($pairs as [$first, $second]) {
+            $preview[1][] = [
+                'round' => 1,
+                'suggested_play_order' => $playOrder++,
+                'player1' => $this->previewPlayer($byId[$first]),
+                'player2' => $this->previewPlayer($byId[$second]),
+            ];
+        }
+        if ($byePlayerId !== null) {
+            $preview[1][] = [
+                'round' => 1,
+                'suggested_play_order' => $playOrder,
+                'player1' => $this->previewPlayer($byId[$byePlayerId]),
+                'player2' => $this->previewTbd('Bye'),
+            ];
+        }
+
+        return $preview;
+    }
+
     public function initialize(Tournament $tournament)
     {
         $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();

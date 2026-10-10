@@ -15,6 +15,161 @@ class DoubleEliminationService extends ModeService implements HasMode
     use SplitParticipant;
 
     /**
+     * Build the same schedule as initialize(), using play order numbers as
+     * prerequisite references. No match or participant rows are written.
+     */
+    public function previewBracket(Tournament $tournament): array
+    {
+        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        if ($players->count() < 2) {
+            return [];
+        }
+
+        $byId = $players->keyBy('id');
+        $split = (bool) $tournament->split_participant;
+        $topCount = $split ? min($players->count(), $this->halfOfNextPowerOfTwo($players->count())) : $players->count();
+        $top = $players->take($topCount)->values();
+        $bottom = $players->slice($topCount)->values();
+        $wbRoundCount = $this->calculateTotalRound($top->count());
+        $preview = [];
+        $wbMatches = [];
+        $queue = collect();
+        $playOrder = 1;
+
+        for ($round = 1; $round <= $wbRoundCount; $round++) {
+            $matchCount = $round === 1
+                ? (int) $this->firstRoundMatches($top->count())
+                : $this->calculateMatchesCountInRound($wbRoundCount, $round);
+            $entries = $this->filterPlayersByRound($top, $matchCount)->values();
+            $wbMatches[$round] = [];
+            for ($i = 0; $i < $entries->count(); $i += 2) {
+                $first = $entries[$i]['id'] == 0
+                    ? ['match' => $queue->shift(), 'loser' => false]
+                    : ['raw' => $entries[$i]['id']];
+                $second = $entries[$i + 1]['id'] == 0
+                    ? ['match' => $queue->shift(), 'loser' => false]
+                    : ['raw' => $entries[$i + 1]['id']];
+                $order = $this->appendPreviewMatch($preview, $round, $playOrder, $first, $second, $byId);
+                $wbMatches[$round][] = $order;
+                $queue->push($order);
+            }
+        }
+
+        $champion = null;
+        if ($split && $bottom->isNotEmpty()) {
+            $round = 1;
+            $wbLosers = array_map(fn ($order) => ['match' => $order, 'loser' => true], $wbMatches[1] ?? []);
+            $bottomIds = $bottom->pluck('id')->values()->all();
+            $carry = [];
+            $survivors = [];
+            if (count($wbLosers) >= count($bottomIds)) {
+                foreach ($bottomIds as $index => $id) {
+                    $order = $this->appendPreviewMatch($preview, -$round, $playOrder, ['raw' => $id], $wbLosers[$index], $byId);
+                    $survivors[] = ['match' => $order, 'loser' => false];
+                }
+                $carry = array_slice($wbLosers, count($bottomIds));
+            } else {
+                $pairs = min(intdiv(count($bottomIds), 2), count($bottomIds) - count($wbLosers));
+                for ($i = 0; $i < $pairs; $i++) {
+                    $order = $this->appendPreviewMatch($preview, -$round, $playOrder,
+                        ['raw' => $bottomIds[$i * 2]], ['raw' => $bottomIds[$i * 2 + 1]], $byId);
+                    $survivors[] = ['match' => $order, 'loser' => false];
+                }
+                $carry = array_merge(array_map(fn ($id) => ['raw' => $id], array_slice($bottomIds, $pairs * 2)), $wbLosers);
+            }
+
+            for ($k = 2; $k <= $wbRoundCount; $k++) {
+                $round++;
+                [$survivors, $carry] = $this->appendPreviewLbRound($preview, $round, $playOrder, array_merge($survivors, $carry), [], $byId);
+                $round++;
+                $incoming = array_map(fn ($order) => ['match' => $order, 'loser' => true], $wbMatches[$k] ?? []);
+                [$survivors, $carry] = $this->appendPreviewLbRound($preview, $round, $playOrder, array_merge($survivors, $carry), $incoming, $byId);
+            }
+            while (count($survivors) + count($carry) > 1) {
+                $round++;
+                [$survivors, $carry] = $this->appendPreviewLbRound($preview, $round, $playOrder, array_merge($survivors, $carry), [], $byId);
+            }
+            $champion = $survivors[0] ?? $carry[0] ?? null;
+        } else {
+            $round = 0;
+            $population = array_map(fn ($order) => ['match' => $order, 'loser' => true], $wbMatches[1] ?? []);
+            for ($k = 2; $k <= $wbRoundCount; $k++) {
+                $incoming = array_map(fn ($order) => ['match' => $order, 'loser' => true], $wbMatches[$k] ?? []);
+                if (count($population) > count($incoming)) {
+                    $round++;
+                    [$winners, $carry] = $this->appendPreviewLbRound($preview, $round, $playOrder, $population, [], $byId,
+                        count($population) - count($incoming));
+                    $population = array_merge($winners, $carry);
+                }
+                $round++;
+                [$winners, $carry] = $this->appendPreviewLbRound($preview, $round, $playOrder, $population, array_reverse($incoming), $byId);
+                $population = array_merge($winners, $carry);
+            }
+            while (count($population) > 1) {
+                $round++;
+                [$winners, $carry] = $this->appendPreviewLbRound($preview, $round, $playOrder, $population, [], $byId);
+                $population = array_merge($winners, $carry);
+            }
+            $champion = $population[0] ?? null;
+        }
+
+        if ($champion !== null && isset($wbMatches[$wbRoundCount][0])) {
+            $this->appendPreviewMatch($preview, $wbRoundCount + 1, $playOrder,
+                ['match' => $wbMatches[$wbRoundCount][0], 'loser' => false], $champion, $byId);
+            // The reset is conditional, so it is a note in the UI rather than
+            // a scheduled match (initialize creates it only after an upset).
+        }
+
+        ksort($preview);
+        return $preview;
+    }
+
+    private function appendPreviewMatch(array &$preview, int $round, int &$playOrder, array $first, array $second, $byId): int
+    {
+        $order = $playOrder++;
+        $preview[$round][] = [
+            'round' => $round,
+            'suggested_play_order' => $order,
+            'player1' => $this->previewEntrant($first, $byId),
+            'player2' => $this->previewEntrant($second, $byId),
+        ];
+        return $order;
+    }
+
+    private function previewEntrant(array $entrant, $byId): array
+    {
+        if (isset($entrant['raw'])) {
+            return $this->previewPlayer($byId[$entrant['raw']]);
+        }
+        $kind = ($entrant['loser'] ?? false) ? 'Loser' : 'Winner';
+        return $this->previewTbd("{$kind} of Match {$entrant['match']}", $entrant['match']);
+    }
+
+    private function appendPreviewLbRound(array &$preview, int $round, int &$playOrder, array $primary, array $secondary, $byId, ?int $maxPairs = null): array
+    {
+        $winners = [];
+        if ($secondary === []) {
+            $pairs = intdiv(count($primary), 2);
+            if ($maxPairs !== null) {
+                $pairs = min($pairs, $maxPairs);
+            }
+            for ($i = 0; $i < $pairs; $i++) {
+                $order = $this->appendPreviewMatch($preview, -$round, $playOrder, $primary[$i * 2], $primary[$i * 2 + 1], $byId);
+                $winners[] = ['match' => $order, 'loser' => false];
+            }
+            return [$winners, array_slice($primary, $pairs * 2)];
+        }
+
+        $pairs = min(count($primary), count($secondary));
+        for ($i = 0; $i < $pairs; $i++) {
+            $order = $this->appendPreviewMatch($preview, -$round, $playOrder, $primary[$i], $secondary[$i], $byId);
+            $winners[] = ['match' => $order, 'loser' => false];
+        }
+        $carry = count($primary) > $pairs ? array_slice($primary, $pairs) : array_slice($secondary, $pairs);
+        return [$winners, $carry];
+    }
+
+    /**
      * @var array<int, int> keyed by match id => winner_id, for matches
      *      already resolved (from a prior run) so dependent matches can be
      *      pre-populated instead of waiting for the next regeneration.

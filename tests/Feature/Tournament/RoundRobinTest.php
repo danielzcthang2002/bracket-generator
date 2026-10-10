@@ -103,7 +103,7 @@ it('generates a round robin schedule', function (
         ]);
     });
 
-    $matches = (new TournamentMatchService())->generateMatches($tournament->id);
+    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($expectedTotalMatchCount);
 

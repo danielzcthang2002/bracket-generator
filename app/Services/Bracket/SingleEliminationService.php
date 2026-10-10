@@ -7,6 +7,7 @@ namespace App\Services\Bracket;
 use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Models\Player;
 use App\Services\Bracket\Contracts\HasMode;
 use Illuminate\Support\Collection;
 
@@ -304,7 +305,7 @@ class SingleEliminationService extends ModeService implements HasMode
      * Turn a raw seeding-round entry into either a real player slot
      * or a "winner of match X" placeholder slot.
      */
-    private function resolvePreviewSlot(array $player, Collection &$preReqQueue): array
+    private function resolvePreviewSlot(Player|array $player, Collection &$preReqQueue): array
     {
         if ($player['id'] == 0) {
             $prereqOrder = $preReqQueue->first();

@@ -6,10 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\TournamentModeEnum;
 use App\Enums\TournamentStatus;
-use App\Services\TournamentMatchService;
-use App\Services\TournamentService;
 use App\Models\Player;
 use App\Models\Tournament;
+use App\Services\Bracket\Contracts\ModeResolver;
+use App\Services\TournamentMatchService;
+use App\Services\TournamentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -86,7 +87,7 @@ class TournamentController extends Controller
             ->with('success', 'Tournament created successfully.');
     }
 
-    public function show(string $openId): Response
+    public function show(string $openId, ModeResolver $modeResolver): Response
     {
         $tournament = Tournament::query()
             ->withCount(['players', 'matches'])
@@ -98,6 +99,9 @@ class TournamentController extends Controller
             ->firstOrFail();
 
         return Inertia::render('tournament/tournament-show', [
+            'bracketPreview' => !in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+                ? $modeResolver->resolve($tournament->mode_type->value)->previewBracket($tournament)
+                : [],
             'tournament' => [
                 'id' => $tournament->id,
                 'name' => $tournament->name,
@@ -349,7 +353,7 @@ class TournamentController extends Controller
 
     public function startTournament(string $openId): RedirectResponse
     {
-        $service = new TournamentService();
+        $service = app(TournamentService::class);
 
         $service->startTournament($openId);
 
@@ -360,7 +364,7 @@ class TournamentController extends Controller
 
     public function endTournament(string $openId): RedirectResponse
     {
-        $service = new TournamentService();
+        $service = app(TournamentService::class);
 
         $service->endTournament($openId);
 
@@ -379,7 +383,7 @@ class TournamentController extends Controller
         $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
         $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
 
-        $service = new TournamentMatchService();
+        $service = app(TournamentMatchService::class);
         $service->updateMatchScores(
             $match->id,
             $validated['scores_csv'],
@@ -403,7 +407,7 @@ class TournamentController extends Controller
         $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
         $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
 
-        $service = new TournamentMatchService();
+        $service = app(TournamentMatchService::class);
         $service->updateFfaMatchScores(
             $match->id,
             $validated['participants'],

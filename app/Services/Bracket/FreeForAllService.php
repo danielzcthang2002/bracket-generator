@@ -74,6 +74,25 @@ class FreeForAllService extends ModeService implements HasMode
     private const DEFAULT_HEAT_SIZE = 4;
     private const DEFAULT_ADVANCE_RATIO = 0.5;
 
+    public function previewBracket(Tournament $tournament): array
+    {
+        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        if ($players->count() < 2) {
+            return [];
+        }
+
+        $preview = [1 => []];
+        foreach ($this->buildHeats($players, $this->heatSize($tournament)) as $index => $heat) {
+            $preview[1][] = [
+                'round' => 1,
+                'suggested_play_order' => $index + 1,
+                'participants' => array_map(fn ($player) => $this->previewPlayer($player), $heat),
+            ];
+        }
+
+        return $preview;
+    }
+
     public function initialize(Tournament $tournament)
     {
         $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();

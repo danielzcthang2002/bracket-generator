@@ -15,13 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('open_id', 50)->unique();
             $table->string('name', 255);
-            $table->enum('mode_type', [
-                'single_elimination',
-                'double_elimination',
-                'round_robin',
-                'swiss',
-                'free_for_all',
-            ])->index();
+            $table->string('mode_type')->index();
             $table->text('description')->nullable();
 
             // Date and Time
@@ -33,14 +27,7 @@ return new class extends Migration
             $table->integer('check_in_time')->nullable();
             $table->unsignedInteger('max_entry')->nullable();
 
-            $table->enum('status', [
-                'pending',
-                'open',
-                'closed',
-                'seeding',
-                'started',
-                'ended'
-            ])->default('pending');
+            $table->string('status')->default('pending');
 
             // Double elimination columns
             $table->boolean('split_participant')->nullable();
@@ -60,7 +47,12 @@ return new class extends Migration
             $table->decimal('points_per_set_tie', 8, 2)->nullable();
             $table->decimal('points_per_bye', 8, 2)->nullable();
             $table->integer('swiss_rounds')->nullable();
-            
+
+            // Two Stage
+            $table->string('stage')->default('final')->index();
+            $table->string('placeholder_stage_name')->nullable();
+            $table->foreignId('parent_tournament_id')->nullable()->constrained('tournaments', 'id')->cascadeOnDelete();
+
             $table->timestamps();
             $table->softDeletes();
         });

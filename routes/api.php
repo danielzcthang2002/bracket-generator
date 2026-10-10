@@ -42,7 +42,7 @@ Route::prefix('v1')->group(function () {
 });
 
 Route::get('/test', function () {
-    $service = new TournamentMatchService();
+    $service = app(TournamentMatchService::class);
 
     return $service->generateMatches(1);
 });

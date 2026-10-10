@@ -31,6 +31,43 @@ use Illuminate\Support\Collection;
  */
 class RoundRobinService extends ModeService implements HasMode
 {
+    public function previewBracket(Tournament $tournament): array
+    {
+        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        if ($players->count() < 2) {
+            return [];
+        }
+
+        $byId = $players->keyBy('id');
+        $order = $players->pluck('id')->all();
+        if (count($order) % 2 !== 0) {
+            $order[] = 0;
+        }
+
+        $size = count($order);
+        $preview = [];
+        $playOrder = 1;
+        for ($round = 1; $round < $size; $round++) {
+            $preview[$round] = [];
+            for ($i = 0; $i < $size / 2; $i++) {
+                $first = $order[$i];
+                $second = $order[$size - 1 - $i];
+                if ($first === 0 || $second === 0) {
+                    continue;
+                }
+                $preview[$round][] = [
+                    'round' => $round,
+                    'suggested_play_order' => $playOrder++,
+                    'player1' => $this->previewPlayer($byId[$first]),
+                    'player2' => $this->previewPlayer($byId[$second]),
+                ];
+            }
+            $order = $this->rotate($order);
+        }
+
+        return $preview;
+    }
+
     public function initialize(Tournament $tournament)
     {
         $players = $tournament->players()

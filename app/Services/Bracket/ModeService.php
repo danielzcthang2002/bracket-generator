@@ -5,10 +5,32 @@ declare(strict_types=1);
 namespace App\Services\Bracket;
 
 use App\Models\Tournament;
+use App\Models\Player;
 
 abstract class ModeService
 {
     abstract public function initialize(Tournament $tournament);
+
+    abstract public function previewBracket(Tournament $tournament): array;
+
+    protected function previewPlayer(Player $player): array
+    {
+        return [
+            'type' => 'player',
+            'id' => $player->id,
+            'name' => $player->name,
+            'seed' => $player->seed,
+        ];
+    }
+
+    protected function previewTbd(string $label = 'TBD', ?int $prerequisite = null): array
+    {
+        return [
+            'type' => 'tbd',
+            'label' => $label,
+            'prereq_suggested_play_order' => $prerequisite,
+        ];
+    }
     /**
      * Calculate the total number of rounds based on the number of players.
      *

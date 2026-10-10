@@ -109,7 +109,7 @@ it('generates a double elimination bracket with a custom winners bracket shape',
         ]);
     });
 
-    $matches = (new TournamentMatchService())->generateMatches($tournament->id);
+    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($expectedTotalMatchCount);
 

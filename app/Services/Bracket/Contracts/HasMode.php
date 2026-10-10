@@ -7,4 +7,6 @@ use App\Models\Tournament;
 interface HasMode
 {
     public function initialize(Tournament $tournament);
+
+    public function previewBracket(Tournament $tournament): array;
 }
