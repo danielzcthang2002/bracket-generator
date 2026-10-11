@@ -51,6 +51,28 @@ it('uses one check-in endpoint for both participant states', function () {
     expect($player->fresh()->checked_in)->toBeTrue();
 });
 
+it('previews matches without persisting them', function () {
+    $tournament = Tournament::query()->create([
+        'name' => 'Preview Cup',
+        'open_id' => 'PREVIEW01',
+        'mode_type' => TournamentModeEnum::ROUND_ROBIN,
+        'status' => TournamentStatus::PENDING,
+    ]);
+    $alice = $tournament->players()->create(['name' => 'Alice', 'seed' => 1, 'checked_in' => true]);
+    $bob = $tournament->players()->create(['name' => 'Bob', 'seed' => 2, 'checked_in' => true]);
+
+    $this->getJson("/api/v1/tournaments/{$tournament->open_id}/matches/preview")
+        ->assertOk()
+        ->assertJsonPath('message', 'Match preview retrieved successfully.')
+        ->assertJsonPath('meta.count', 1)
+        ->assertJsonPath('data.1.0.round', 1)
+        ->assertJsonPath('data.1.0.suggested_play_order', 1)
+        ->assertJsonPath('data.1.0.player1.id', $alice->id)
+        ->assertJsonPath('data.1.0.player2.id', $bob->id);
+
+    expect($tournament->matches()->count())->toBe(0);
+});
+
 it('does not expose the legacy json-suffixed routes', function () {
     $this->getJson('/api/v1/tournaments.json')->assertNotFound();
 });

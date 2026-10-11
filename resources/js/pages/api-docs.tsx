@@ -218,6 +218,25 @@ const sections: Section[] = [
 }`,
             },
             {
+                method: 'GET',
+                path: '/tournaments/{openId}/matches/preview',
+                description: 'Preview the matches that would be generated without writing data. Available before the tournament starts.',
+                response: `{
+  "message": "Match preview retrieved successfully.",
+  "data": {
+    "1": [
+      {
+        "round": 1,
+        "suggested_play_order": 1,
+        "player1": { "type": "player", "id": 42, "name": "Northstar", "seed": 1 },
+        "player2": { "type": "player", "id": 57, "name": "Wildcats", "seed": 8 }
+      }
+    ]
+  },
+  "meta": { "count": 1 }
+}`,
+            },
+            {
                 method: 'POST',
                 path: '/tournaments/{openId}/matches/generate',
                 description: 'Generate or refresh matches using the tournament’s configured format.',

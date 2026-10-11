@@ -11,6 +11,7 @@ use App\Http\Resources\PlayerResource;
 use App\Http\Resources\Tournament\TournamentResource;
 use App\Http\Resources\TournamentMatchResource;
 use App\Models\Tournament;
+use App\Services\Bracket\Contracts\ModeResolver;
 use App\Services\PlayerService;
 use App\Services\TournamentMatchService;
 use App\Services\TournamentService;
@@ -24,6 +25,7 @@ class TournamentApiController extends BaseApiController
         private readonly TournamentService $tournamentService,
         private readonly PlayerService $playerService,
         private readonly TournamentMatchService $tournamentMatchService,
+        private readonly ModeResolver $modeResolver,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -150,6 +152,20 @@ class TournamentApiController extends BaseApiController
             TournamentMatchResource::collection($matches),
             'Matches retrieved successfully.',
             meta: ['count' => $matches->count()],
+        );
+    }
+
+    public function previewMatches(Request $request, string $openId): JsonResponse
+    {
+        $tournament = $this->findTournament($openId);
+        $preview = ! in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+            ? $this->modeResolver->resolve($tournament->mode_type->value)->previewBracket($tournament)
+            : [];
+
+        return $this->successResponse(
+            $preview,
+            'Match preview retrieved successfully.',
+            meta: ['count' => collect($preview)->flatten(1)->count()],
         );
     }
 

@@ -17,6 +17,7 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::post('tournaments/{openId}/participants/process-check-ins', [TournamentApiController::class, 'processCheckedInPlayers'])->name('participants.process-check-ins');
 
     Route::get('tournaments/{openId}/matches', [TournamentApiController::class, 'getMatches'])->name('matches.index');
+    Route::get('tournaments/{openId}/matches/preview', [TournamentApiController::class, 'previewMatches'])->name('matches.preview');
     Route::post('tournaments/{openId}/matches/generate', [TournamentApiController::class, 'generateMatches'])->name('matches.generate');
     Route::put('tournaments/{openId}/matches/{matchId}/score', [TournamentApiController::class, 'updateMatchScores'])->name('matches.score');
 
