@@ -9,10 +9,12 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
+Route::get('/api-docs', function () {
+    return Inertia::render('api-docs');
+})->name('api.docs');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-
-
 
     Route::prefix('tournaments')->group(function () {
         Route::post('/', [TournamentController::class, 'store'])->name('tournament.store');
@@ -26,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('{openId}/matches/{matchId}/ffa-score', [TournamentController::class, 'updateFfaMatchScores'])->name('tournament.match.score.update-ffa');
         Route::post('{openId}/players', [TournamentController::class, 'storePlayer'])->name('tournament.player.store');
         Route::post('{openId}/players/bulk', [TournamentController::class, 'storePlayersBulk'])->name('tournament.player.bulk.store');
+        Route::delete('{openId}/players/bulk', [TournamentController::class, 'destroyPlayersBulk'])->name('tournament.player.bulk.destroy');
         Route::put('{openId}/players/{playerId}', [TournamentController::class, 'updatePlayer'])->name('tournament.player.update');
         Route::delete('{openId}/players/{playerId}', [TournamentController::class, 'destroyPlayer'])->name('tournament.player.destroy');
 
@@ -36,5 +39,5 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__ . '/settings.php';
-require __DIR__ . '/auth.php';
+require __DIR__.'/settings.php';
+require __DIR__.'/auth.php';

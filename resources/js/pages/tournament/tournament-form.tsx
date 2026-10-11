@@ -74,11 +74,17 @@ export default function TournamentForm({
     const showRankAndPoints = isRoundRobin || isSwiss;
 
     return (
-        <form onSubmit={onSubmit} className="space-y-4">
-            <Card>
+        <form onSubmit={onSubmit} className="space-y-5">
+            <div className="relative overflow-hidden rounded-3xl bg-[#172012] p-6 text-white shadow-xl shadow-black/10 sm:p-8">
+                <div className="absolute -top-20 right-10 size-56 rounded-full bg-lime-400/15 blur-3xl" />
+                <p className="relative text-sm font-semibold text-lime-300">Tournament setup</p>
+                <h1 className="relative mt-1 text-3xl font-bold tracking-[-0.04em]">{title}</h1>
+                <p className="relative mt-2 max-w-2xl text-sm text-white/50">{description}</p>
+            </div>
+            <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none dark:border-white/8 dark:bg-white/[0.04]">
                 <CardHeader>
-                    <CardTitle>{title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
+                    <CardTitle>Competition details</CardTitle>
+                    <CardDescription>Core information, scheduling, and format rules.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2 md:col-span-2">
@@ -361,7 +367,11 @@ export default function TournamentForm({
             </Card>
 
             <div className="flex justify-end">
-                <Button type="submit" disabled={processing}>
+                <Button
+                    type="submit"
+                    disabled={processing}
+                    className="rounded-full bg-[#172012] px-6 font-semibold text-white hover:bg-[#2a3522] dark:bg-lime-400 dark:text-[#10140c] dark:hover:bg-lime-300"
+                >
                     {submitLabel}
                 </Button>
             </div>

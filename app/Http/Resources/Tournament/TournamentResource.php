@@ -17,18 +17,19 @@ class TournamentResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'url' => $this->open_id,
+            'open_id' => $this->open_id,
             'name' => $this->name,
-            'tournament_type' => $this->mode_type,
+            'mode_type' => $this->mode_type?->value,
             'description' => $this->description,
-            'start_at' => $this->start_at ? $this->start_at : null,
-            'end_at' => $this->end_at ? $this->end_at : null,
+            'start_at' => $this->start_at?->toIso8601String(),
+            'end_at' => $this->end_at?->toIso8601String(),
             'require_check_in' => $this->require_check_in,
             'check_in_time' => $this->check_in_time ? $this->check_in_time : null,
             'max_entry' => $this->max_entry,
-            'status' => $this->status,
+            'status' => $this->status?->value,
             'split_participant' => $this->when($this->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION, $this->split_participant),
             'ffa_heat_size' => $this->whenNotNull($this->ffa_heat_size),
+            'ffa_advance_count' => $this->whenNotNull($this->ffa_advance_count),
             'head_to_head_count' => $this->whenNotNull($this->head_to_head_count),
             'rank_by' => $this->whenNotNull($this->rank_by),
             'points_per_match_win' => $this->whenNotNull($this->points_per_match_win),
@@ -36,7 +37,11 @@ class TournamentResource extends JsonResource
             'points_per_set_win' => $this->whenNotNull($this->points_per_set_win),
             'points_per_set_tie' => $this->whenNotNull($this->points_per_set_tie),
             'points_per_bye' => $this->whenNotNull($this->points_per_bye),
-            'created_at' => $this->created_at,
+            'swiss_rounds' => $this->whenNotNull($this->swiss_rounds),
+            'players_count' => $this->whenCounted('players'),
+            'matches_count' => $this->whenCounted('matches'),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

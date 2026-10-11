@@ -12,33 +12,29 @@ use Illuminate\Support\Facades\DB;
 
 class PlayerService
 {
-
     public function getPlayersByTournamentId(string $openId): \Illuminate\Database\Eloquent\Collection
     {
         $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+
         return Player::query()->where('tournament_id', $tournament->id)->get();
     }
 
     private function tournamentStartedBlock(Tournament $tournament): void
     {
-        if ($tournament->status == TournamentStatus::STARTED) {
+        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
             throw new Exception('Tournament has already started. Cannot modify players.');
         }
     }
 
     /**
      * Create a new player.
-     *
-     * @param array $data
-     * @param string $openId
-     * @return Player
      */
     public function createPlayer(array $data, string $openId): Player
     {
         DB::beginTransaction();
         try {
             $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
-            $player = new Player();
+            $player = new Player;
 
             $player->name = $data['name'];
             $player->tournament_id = $tournament->id;
@@ -50,10 +46,11 @@ class PlayerService
 
             $player->save();
             DB::commit();
+
             return $player;
         } catch (Exception $th) {
             DB::rollBack();
-            throw new Exception('Failed to create player: ' . $th->getMessage());
+            throw new Exception('Failed to create player: '.$th->getMessage());
         }
     }
 
@@ -73,9 +70,6 @@ class PlayerService
         }
     }
 
-
-
-
     public function removePlayer(int $playerId): Player
     {
         $player = Player::findOrFail($playerId);
@@ -84,7 +78,29 @@ class PlayerService
         $deletedPlayer = $player->replicate();
         $player->delete();
         $this->reassignSeeds($player->tournament_id);
+
         return $deletedPlayer;
+    }
+
+    /**
+     * @param  array<int>  $playerIds
+     */
+    public function removePlayers(string $openId, array $playerIds): int
+    {
+        return DB::transaction(function () use ($openId, $playerIds): int {
+            $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+            $this->tournamentStartedBlock($tournament);
+            $players = $tournament->players()->whereKey($playerIds)->lockForUpdate()->get();
+
+            if ($players->count() !== count(array_unique($playerIds))) {
+                throw new \InvalidArgumentException('One or more players do not belong to this tournament.');
+            }
+
+            $deleted = $tournament->players()->whereKey($playerIds)->delete();
+            $this->reassignSeeds($tournament->id);
+
+            return $deleted;
+        });
     }
 
     // ===== Helper Methods =====
@@ -102,8 +118,6 @@ class PlayerService
 
     /**
      * Reassign seeds for all players in a tournament after a player is removed.
-     * @param int $tournamentId
-     * @return void
      */
     private function reassignSeeds(int $tournamentId): void
     {
@@ -117,8 +131,7 @@ class PlayerService
         }
         // Build case statement for bulk update (1 query)
         $cases = $players->map(
-            fn($player, $index) =>
-            "WHEN id = {$player->id} THEN " . ($index + 1)
+            fn ($player, $index) => "WHEN id = {$player->id} THEN ".($index + 1)
         )->implode(' ');
 
         DB::update(
@@ -127,7 +140,6 @@ class PlayerService
             [$tournamentId]
         );
     }
-
 
     public function checkInPlayer(string $openId, int $playerId): Player
     {

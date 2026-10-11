@@ -1,8 +1,8 @@
+import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import InputError from '@/components/input-error';
 import { useForm } from '@inertiajs/react';
 import { FormEvent, useEffect, useMemo } from 'react';
 
@@ -131,6 +131,7 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
     };
 
     const isFreeForAll = modeType === 'free_for_all';
+    const allowsTie = modeType === 'round_robin' || modeType === 'swiss';
     const freeForAllParticipants = match?.participants ?? [];
 
     return (
@@ -145,7 +146,7 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
                 onOpenChange(true);
             }}
         >
-            <DialogContent>
+            <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
                 <DialogTitle>Add Scores</DialogTitle>
                 <DialogDescription>
                     {isFreeForAll
@@ -157,9 +158,14 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
                     {isFreeForAll ? (
                         <div className="space-y-3">
                             {freeForAllParticipants.map((participant, index) => (
-                                <div key={participant.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
+                                <div
+                                    key={participant.id}
+                                    className="grid gap-3 rounded-xl border border-black/8 bg-white/60 p-3 md:grid-cols-2 dark:border-white/8 dark:bg-white/[0.03]"
+                                >
                                     <div className="space-y-1">
-                                        <p className="text-sm font-medium">{participant.player?.name ?? `Player #${participant.player_id ?? participant.id}`}</p>
+                                        <p className="text-sm font-medium">
+                                            {participant.player?.name ?? `Player #${participant.player_id ?? participant.id}`}
+                                        </p>
                                         <p className="text-muted-foreground text-xs">Position {participant.position ?? index + 1}</p>
                                     </div>
                                     <div className="grid gap-3 sm:grid-cols-2">
@@ -171,9 +177,12 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
                                                 min={1}
                                                 value={data.participants[index]?.rank ?? ''}
                                                 onChange={(event) => {
-                                                    setData('participants', data.participants.map((item, itemIndex) => (
-                                                        itemIndex === index ? { ...item, rank: event.target.value } : item
-                                                    )));
+                                                    setData(
+                                                        'participants',
+                                                        data.participants.map((item, itemIndex) =>
+                                                            itemIndex === index ? { ...item, rank: event.target.value } : item,
+                                                        ),
+                                                    );
                                                 }}
                                                 disabled={processing}
                                             />
@@ -187,9 +196,12 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
                                                 step="0.01"
                                                 value={data.participants[index]?.score ?? ''}
                                                 onChange={(event) => {
-                                                    setData('participants', data.participants.map((item, itemIndex) => (
-                                                        itemIndex === index ? { ...item, score: event.target.value } : item
-                                                    )));
+                                                    setData(
+                                                        'participants',
+                                                        data.participants.map((item, itemIndex) =>
+                                                            itemIndex === index ? { ...item, score: event.target.value } : item,
+                                                        ),
+                                                    );
                                                 }}
                                                 disabled={processing}
                                                 placeholder="Optional"
@@ -226,7 +238,7 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
                                     disabled={processing || selectablePlayers.length === 0}
                                 >
                                     <option value="">Select winner (optional)</option>
-                                    <option value="tie">Tie</option>
+                                    {allowsTie && <option value="tie">Tie</option>}
                                     {selectablePlayers.map((player) => (
                                         <option key={player.id} value={player.id}>
                                             {player.name}
@@ -240,11 +252,21 @@ export function MatchScoreModal({ open, onOpenChange, tournamentOpenId, modeType
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" type="button" onClick={closeModal} disabled={processing}>
+                            <Button
+                                variant="outline"
+                                type="button"
+                                className="rounded-full border-green-800/15 text-green-800 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                onClick={closeModal}
+                                disabled={processing}
+                            >
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <Button type="submit" disabled={processing || !match}>
+                        <Button
+                            type="submit"
+                            disabled={processing || !match}
+                            className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300"
+                        >
                             Save scores
                         </Button>
                     </DialogFooter>

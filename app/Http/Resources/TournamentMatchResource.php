@@ -17,7 +17,7 @@ class TournamentMatchResource extends JsonResource
         return [
             'id' => $this->id,
             'tournament_id' => $this->tournament_id,
-            'state' => $this->state,
+            'state' => $this->state?->value,
             'player1_id' => $this->player1_id,
             'player2_id' => $this->player2_id,
             'player1_score' => $this->player1_score,
@@ -29,12 +29,9 @@ class TournamentMatchResource extends JsonResource
             'is_tie' => $this->is_tie,
             'round' => $this->round,
             'suggested_play_order' => $this->suggested_play_order,
-            'identifier' => $this->suggested_play_order,
             'completed_at' => $this->completed_at ? $this->completed_at->toIso8601String() : null,
             'player1_is_prereq_match_loser' => $this->player1_is_prereq_match_loser,
             'player2_is_prereq_match_loser' => $this->player2_is_prereq_match_loser,
-            'player1_prereq_identifier' => $this->player1_prereq_match_id. '-preid',
-            'player2_prereq_identifier' => $this->player2_prereq_match_id. '-preid',
             'scores_csv' => $this->whenLoaded('matchScores', function () {
                 return $this->matchScores
                     ->groupBy('set')
@@ -43,11 +40,20 @@ class TournamentMatchResource extends JsonResource
                         $scores = $setScores->keyBy('player_id');
                         $p1 = $scores[$this->player1_id]->score ?? 0;
                         $p2 = $scores[$this->player2_id]->score ?? 0;
+
                         return "{$p1}-{$p2}";
                     })->implode(',');
             }),
             'player1' => new PlayerResource($this->whenLoaded('player1')),
             'player2' => new PlayerResource($this->whenLoaded('player2')),
+            'participants' => $this->whenLoaded('participants', fn () => $this->participants->map(fn ($participant) => [
+                'id' => $participant->id,
+                'position' => $participant->position,
+                'score' => $participant->score,
+                'rank' => $participant->rank,
+                'is_winner' => (bool) $participant->is_winner,
+                'player' => new PlayerResource($participant->player),
+            ])->values()),
         ];
     }
 }

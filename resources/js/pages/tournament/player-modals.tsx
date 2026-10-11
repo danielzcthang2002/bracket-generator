@@ -65,9 +65,9 @@ export function AddPlayerModal({ open, onOpenChange, tournamentOpenId }: AddPlay
             }}
         >
             <DialogTrigger asChild>
-                <Button>Add player</Button>
+                <Button className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">Add player</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
                 <DialogTitle>Add Player</DialogTitle>
                 <DialogDescription>Add a participant to this tournament.</DialogDescription>
 
@@ -97,11 +97,20 @@ export function AddPlayerModal({ open, onOpenChange, tournamentOpenId }: AddPlay
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" onClick={closeModal} type="button">
+                            <Button
+                                variant="outline"
+                                className="rounded-full border-green-800/15 text-green-800 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                onClick={closeModal}
+                                type="button"
+                            >
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <Button type="submit" disabled={processing}>
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300"
+                        >
                             Save player
                         </Button>
                     </DialogFooter>
@@ -151,9 +160,14 @@ export function BulkAddPlayerModal({ open, onOpenChange, tournamentOpenId }: Bul
             }}
         >
             <DialogTrigger asChild>
-                <Button variant="outline">Bulk add</Button>
+                <Button
+                    variant="outline"
+                    className="rounded-full border-green-800/15 bg-lime-300/15 font-semibold text-green-800 hover:border-lime-500/40 hover:bg-lime-300/30 dark:border-lime-300/20 dark:bg-lime-300/10 dark:text-lime-300 dark:hover:bg-lime-300/20"
+                >
+                    Bulk add
+                </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
                 <DialogTitle>Bulk Add Players</DialogTitle>
                 <DialogDescription>Create players from a shared name prefix and count.</DialogDescription>
 
@@ -188,11 +202,20 @@ export function BulkAddPlayerModal({ open, onOpenChange, tournamentOpenId }: Bul
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" onClick={closeModal} type="button">
+                            <Button
+                                variant="outline"
+                                className="rounded-full border-green-800/15 text-green-800 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                onClick={closeModal}
+                                type="button"
+                            >
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <Button type="submit" disabled={processing}>
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300"
+                        >
                             Create players
                         </Button>
                     </DialogFooter>
@@ -257,7 +280,7 @@ export function EditPlayerModal({ open, onOpenChange, tournamentOpenId, player }
                 onOpenChange(true);
             }}
         >
-            <DialogContent>
+            <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
                 <DialogTitle>Edit Player</DialogTitle>
                 <DialogDescription>Update player details.</DialogDescription>
 
@@ -287,11 +310,20 @@ export function EditPlayerModal({ open, onOpenChange, tournamentOpenId, player }
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" onClick={closeModal} type="button">
+                            <Button
+                                variant="outline"
+                                className="rounded-full border-green-800/15 text-green-800 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                onClick={closeModal}
+                                type="button"
+                            >
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <Button type="submit" disabled={processing}>
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300"
+                        >
                             Save changes
                         </Button>
                     </DialogFooter>

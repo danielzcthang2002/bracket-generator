@@ -4,215 +4,207 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
+use App\Enums\TournamentModeEnum;
+use App\Enums\TournamentStatus;
 use App\Http\Requests\Tournament\TournamentStoreRequest;
 use App\Http\Resources\PlayerResource;
 use App\Http\Resources\Tournament\TournamentResource;
-use App\Http\Resources\Tournament\TournamentResourceCollection;
 use App\Http\Resources\TournamentMatchResource;
+use App\Models\Tournament;
 use App\Services\PlayerService;
 use App\Services\TournamentMatchService;
 use App\Services\TournamentService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class TournamentApiController extends BaseApiController
 {
     public function __construct(
         private readonly TournamentService $tournamentService,
         private readonly PlayerService $playerService,
-        private readonly TournamentMatchService $tournamentMatchService
+        private readonly TournamentMatchService $tournamentMatchService,
     ) {}
 
-    public function show(Request $request, $openId)
+    public function index(Request $request): JsonResponse
     {
-        $tournament = $this->tournamentService->getTournamentById($openId);
+        $tournaments = Tournament::query()
+            ->withCount(['players', 'matches'])
+            ->latest()
+            ->get();
+
         return $this->successResponse(
-            new TournamentResource($tournament),
-            'Tournament retrieved successfully'
+            TournamentResource::collection($tournaments),
+            'Tournaments retrieved successfully.',
+            meta: ['count' => $tournaments->count()],
         );
     }
 
-    public function index(Request $request)
+    public function show(Request $request, string $openId): JsonResponse
     {
-        $tournaments = $this->tournamentService->getTournaments();
-        return $this->successResponse(
-            new TournamentResourceCollection($tournaments),
-            'Tournament retrieved successfully'
-        );
+        $tournament = Tournament::query()
+            ->withCount(['players', 'matches'])
+            ->where('open_id', $openId)
+            ->firstOrFail();
+
+        return $this->successResponse(new TournamentResource($tournament), 'Tournament retrieved successfully.');
     }
 
-    public function store(TournamentStoreRequest $request)
+    public function store(TournamentStoreRequest $request): JsonResponse
     {
-        $validated = $request->validated();
+        $tournament = $this->tournamentService->createTournament($request->validated());
 
-        $newTournament = $this->tournamentService->createTournament($validated);
-
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Tournament created successfully',
-            'tournament' => new TournamentResource($newTournament),
-        ], 201);
+        return $this->successResponse(new TournamentResource($tournament), 'Tournament created successfully.', 201);
     }
 
-    public function update(TournamentStoreRequest $request, string $openId)
+    public function update(TournamentStoreRequest $request, string $openId): JsonResponse
     {
-        $validated = $request->validated();
+        $tournament = $this->tournamentService->updateTournament($openId, $request->validated());
 
-        $updatedTournament = $this->tournamentService->updateTournament($openId, $validated);
-
-        return $this->successResponse(
-            new TournamentResource($updatedTournament),
-            'Tournament updated successfully'
-        );
+        return $this->successResponse(new TournamentResource($tournament), 'Tournament updated successfully.');
     }
 
-    public function getPlayers(Request $request, string $openId)
-    {
-        $players = $this->playerService->getPlayersByTournamentId($openId);
-        return $this->successResponse(
-            $players,
-            'Players retrieved successfully'
-        );
-    }
-
-    public function addPlayer(Request $request, string $openId)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'checked_in' => 'boolean',
-            'checked_in_at' => 'nullable|date',
-        ]);
-
-
-        $newPlayer = $this->playerService->createPlayer($validated, $openId);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Player added successfully',
-            'participant' => $newPlayer,
-        ], 201);
-    }
-
-    public function removePlayer(Request $request)
-    {
-        $playerId = (int) $request->route('playerId');
-        $deletedPlayer = $this->playerService->removePlayer($playerId);
-        return $this->successResponse(
-            $deletedPlayer,
-            'Player removed successfully'
-        );
-    }
-
-    public function checkInPlayer(Request $request, string $openId, int $playerId)
-    {
-        $checkedIn = $this->playerService->checkInPlayer($openId, $playerId);
-        return $this->successResponse(
-            $checkedIn,
-            'Player checked in successfully'
-        );
-    }
-
-    public function undoCheckInPlayer(Request $request, string $openId, int $playerId)
-    {
-        $checkedIn = $this->playerService->undoCheckInPlayer($openId, $playerId);
-        return $this->successResponse(
-            $checkedIn,
-            'Player check-in undone successfully'
-        );
-    }
-
-    public function importPlayers(Request $request, string $openId, int $playerCount)
-    {
-        for ($i = 0; $i < $playerCount; $i++) {
-            $data = [
-                'name' => 'Player Test ' . ($i + 1),
-                'checked_in' => true,
-            ];
-
-            $this->playerService->createPlayer($data, $openId);
-        }
-        return $this->successResponse(
-            'Players imported successfully'
-        );
-    }
-
-    public function seedingStateMatches(Request $request, string $openId)
-    {
-        $matches = $this->tournamentService->generateMatches($openId)->groupBy('round');
-        $data = [];
-        foreach ($matches as $key => $round) {
-            $data[$key] = $round->map(function ($match) {
-                return new TournamentMatchResource($match);
-            });
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Matches generated successfully',
-            'matches_by_round' => $data,
-        ], 200);
-    }
-
-    public function getMatches(Request $request, string $openId)
-    {
-        $matches = $this->tournamentService->generateMatches($openId);
-        $data = $matches->map(function ($match) {
-            return [
-                'match' => new TournamentMatchResource($match)
-            ];
-        });
-        return response()->json($data, 200);
-    }
-
-    public function getParticipants(Request $request, string $openId)
+    public function getParticipants(Request $request, string $openId): JsonResponse
     {
         $participants = $this->playerService->getPlayersByTournamentId($openId);
 
-        $data = $participants->map(function ($participant) {
-            return [
-                'participant' => new PlayerResource($participant),
-            ];
-        });
-        return response()->json($data, 200);
-    }
-
-    public function processCheckedInPlayers(Request $request, string $openId)
-    {
-        $this->playerService->processCheckedin($openId);
         return $this->successResponse(
-            'Checked-in players processed successfully'
+            PlayerResource::collection($participants),
+            'Participants retrieved successfully.',
+            meta: ['count' => $participants->count()],
         );
     }
 
-    public function startTournament(Request $request, string $openId)
+    public function addPlayer(Request $request, string $openId): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'checked_in' => ['sometimes', 'boolean'],
+            'checked_in_at' => ['nullable', 'date'],
+        ]);
+
+        $participant = $this->playerService->createPlayer($validated, $openId);
+
+        return $this->successResponse(new PlayerResource($participant), 'Participant created successfully.', 201);
+    }
+
+    public function removePlayer(Request $request, string $openId, int $playerId): JsonResponse
+    {
+        $tournament = $this->findTournament($openId);
+        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+            return $this->errorResponse('Players cannot be deleted after a tournament has started.', 409);
+        }
+        $tournament->players()->whereKey($playerId)->firstOrFail();
+        $this->playerService->removePlayer($playerId);
+
+        return response()->json(null, 204);
+    }
+
+    public function removePlayers(Request $request, string $openId): JsonResponse
+    {
+        $tournament = $this->findTournament($openId);
+        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+            return $this->errorResponse('Players cannot be deleted after a tournament has started.', 409);
+        }
+
+        $validated = $request->validate([
+            'player_ids' => ['required', 'array', 'min:1'],
+            'player_ids.*' => ['required', 'integer', 'distinct'],
+        ]);
+
+        $deletedCount = $this->playerService->removePlayers($openId, $validated['player_ids']);
+
+        return $this->successResponse(
+            ['deleted_count' => $deletedCount],
+            'Participants deleted successfully.',
+        );
+    }
+
+    public function updatePlayerCheckIn(Request $request, string $openId, int $playerId): JsonResponse
+    {
+        $validated = $request->validate(['checked_in' => ['required', 'boolean']]);
+        $participant = $validated['checked_in']
+            ? $this->playerService->checkInPlayer($openId, $playerId)
+            : $this->playerService->undoCheckInPlayer($openId, $playerId);
+
+        return $this->successResponse(new PlayerResource($participant), 'Participant check-in updated successfully.');
+    }
+
+    public function processCheckedInPlayers(Request $request, string $openId): JsonResponse
+    {
+        $this->findTournament($openId);
+        $this->playerService->processCheckedin($openId);
+
+        return $this->successResponse(null, 'Unchecked participants removed and seeds updated.');
+    }
+
+    public function getMatches(Request $request, string $openId): JsonResponse
+    {
+        $tournament = $this->findTournament($openId);
+        $matches = $tournament->matches()
+            ->with(['matchScores', 'player1', 'player2', 'participants.player'])
+            ->orderBy('suggested_play_order')
+            ->get();
+
+        return $this->successResponse(
+            TournamentMatchResource::collection($matches),
+            'Matches retrieved successfully.',
+            meta: ['count' => $matches->count()],
+        );
+    }
+
+    public function generateMatches(Request $request, string $openId): JsonResponse
+    {
+        $matches = $this->tournamentService->generateMatches($openId)->load(['matchScores', 'player1', 'player2', 'participants.player']);
+
+        return $this->successResponse(
+            TournamentMatchResource::collection($matches),
+            'Matches generated successfully.',
+            201,
+            ['count' => $matches->count()],
+        );
+    }
+
+    public function startTournament(Request $request, string $openId): JsonResponse
     {
         $tournament = $this->tournamentService->startTournament($openId);
-        return $this->successResponse(
-            new TournamentResource($tournament),
-            'Tournament started successfully'
-        );
+
+        return $this->successResponse(new TournamentResource($tournament), 'Tournament started successfully.');
     }
 
-    public function endTournament(Request $request, string $openId)
+    public function endTournament(Request $request, string $openId): JsonResponse
     {
         $tournament = $this->tournamentService->endTournament($openId);
-        return $this->successResponse(
-            new TournamentResource($tournament),
-            'Tournament ended successfully'
-        );
+
+        return $this->successResponse(new TournamentResource($tournament), 'Tournament ended successfully.');
     }
 
-    public function updateMatchScores(Request $request)
+    public function updateMatchScores(Request $request, string $openId, int $matchId): JsonResponse
     {
-        $matchId = (int) $request->route('matchId');
-        $data = $request->input('match');
-        $scoresCsv = $data['scores_csv'] ?? '';
-        $winnerId = $data['winner_id'] ?? null;
-        $match = $this->tournamentMatchService->updateMatchScores($matchId, $scoresCsv, $winnerId);
-        return $this->successResponse(
-            new TournamentMatchResource($match),
-            'Match scores updated successfully'
+        $tournament = $this->findTournament($openId);
+        $match = $tournament->matches()->whereKey($matchId)->firstOrFail();
+        $allowsTie = in_array($tournament->mode_type, [TournamentModeEnum::ROUND_ROBIN, TournamentModeEnum::SWISS], true);
+        $allowedWinners = array_values(array_filter([$match->player1_id, $match->player2_id]));
+
+        $validated = $request->validate([
+            'scores_csv' => ['required', 'string'],
+            'winner_id' => [
+                'nullable',
+                Rule::in(array_merge($allowedWinners, $allowsTie ? ['tie'] : [])),
+            ],
+        ]);
+
+        $updatedMatch = $this->tournamentMatchService->updateMatchScores(
+            $match->id,
+            $validated['scores_csv'],
+            $validated['winner_id'] ?? null,
         );
+
+        return $this->successResponse(new TournamentMatchResource($updatedMatch->load(['matchScores', 'player1', 'player2'])), 'Match score updated successfully.');
+    }
+
+    private function findTournament(string $openId): Tournament
+    {
+        return Tournament::query()->where('open_id', $openId)->firstOrFail();
     }
 }

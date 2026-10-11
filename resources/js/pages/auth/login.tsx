@@ -36,7 +36,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
     };
 
     return (
-        <AuthLayout title="Log in to your account" description="Enter your email and password below to log in">
+        <AuthLayout title="Welcome back" description="Log in to manage your tournaments and keep the action moving.">
             <Head title="Log in" />
 
             <form className="flex flex-col gap-6" onSubmit={submit}>
@@ -52,7 +52,8 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             autoComplete="email"
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
-                            placeholder="email@example.com"
+                            placeholder="you@example.com"
+                            className="h-11 border-black/10 bg-white/70 focus-visible:border-lime-500 focus-visible:ring-lime-500/20 dark:border-white/10 dark:bg-white/5"
                         />
                         <InputError message={errors.email} />
                     </div>
@@ -74,7 +75,8 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             autoComplete="current-password"
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Password"
+                            placeholder="Enter your password"
+                            className="h-11 border-black/10 bg-white/70 focus-visible:border-lime-500 focus-visible:ring-lime-500/20 dark:border-white/10 dark:bg-white/5"
                         />
                         <InputError message={errors.password} />
                     </div>
@@ -90,13 +92,18 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         <Label htmlFor="remember">Remember me</Label>
                     </div>
 
-                    <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing}>
+                    <Button
+                        type="submit"
+                        className="mt-2 h-11 w-full rounded-full bg-[#172012] font-semibold text-white hover:bg-[#2a3522] dark:bg-lime-400 dark:text-[#10140c] dark:hover:bg-lime-300"
+                        tabIndex={4}
+                        disabled={processing}
+                    >
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                         Log in
                     </Button>
                 </div>
 
-                <div className="text-muted-foreground text-center text-sm">
+                <div className="text-center text-sm text-black/45 dark:text-white/45">
                     Don't have an account?{' '}
                     <TextLink href={route('register')} tabIndex={5}>
                         Sign up

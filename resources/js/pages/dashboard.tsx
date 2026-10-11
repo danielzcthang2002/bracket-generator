@@ -71,49 +71,55 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
             value: stats.tournaments,
             detail: `${stats.active_tournaments} active now`,
             icon: Trophy,
-            tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+            tone: 'bg-lime-300/30 text-lime-700 dark:bg-lime-300/10 dark:text-lime-300',
         },
         {
             label: 'Participants',
             value: stats.players,
             detail: 'Across all tournaments',
             icon: Users,
-            tone: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+            tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
         },
         {
             label: 'Completed matches',
             value: stats.completed_matches,
             detail: `${stats.total_matches} matches generated`,
             icon: CheckCircle2,
-            tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+            tone: 'bg-lime-500/10 text-lime-700 dark:text-lime-300',
         },
         {
             label: 'Completion rate',
             value: `${completionRate}%`,
             detail: stats.total_matches ? `${stats.total_matches - stats.completed_matches} matches remaining` : 'No matches generated',
             icon: Activity,
-            tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+            tone: 'bg-green-500/10 text-green-700 dark:text-green-300',
         },
     ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-1 flex-col gap-6 bg-[#f4f6ed] p-4 md:p-6 dark:bg-[#0b0e09]">
+                <div className="relative overflow-hidden rounded-3xl bg-[#172012] p-6 text-white shadow-xl shadow-black/10 sm:flex sm:items-end sm:justify-between sm:p-8">
+                    <div className="absolute -top-20 right-8 size-56 rounded-full bg-lime-400/15 blur-3xl" />
                     <div>
-                        <p className="text-muted-foreground text-sm font-medium">Tournament overview</p>
-                        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-                        <p className="text-muted-foreground mt-1 text-sm">Track participation, formats, and match progress at a glance.</p>
+                        <p className="text-sm font-semibold text-lime-300">Tournament overview</p>
+                        <h1 className="mt-1 text-3xl font-bold tracking-[-0.04em]">Your competition hub</h1>
+                        <p className="mt-2 text-sm text-white/50">Track participation, formats, and match progress at a glance.</p>
                     </div>
-                    <Button asChild>
-                        <Link href="/tournaments/create">Create tournament</Link>
+                    <Button asChild className="relative mt-6 rounded-full bg-lime-400 px-5 font-semibold text-[#10140c] hover:bg-lime-300 sm:mt-0">
+                        <Link href="/tournaments/create">
+                            Create tournament <ArrowRight className="ml-1 size-4" />
+                        </Link>
                     </Button>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     {statCards.map((stat) => (
-                        <Card key={stat.label} className="gap-4 py-5">
+                        <Card
+                            key={stat.label}
+                            className="gap-4 rounded-2xl border-black/8 bg-white/70 py-5 shadow-none transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]"
+                        >
                             <CardContent className="flex items-start justify-between px-5">
                                 <div>
                                     <p className="text-muted-foreground text-sm font-medium">{stat.label}</p>
@@ -129,7 +135,7 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-5">
-                    <Card className="xl:col-span-3">
+                    <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none xl:col-span-3 dark:border-white/8 dark:bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Tournament activity</CardTitle>
                             <CardDescription>New tournaments created over the last six months.</CardDescription>
@@ -143,7 +149,7 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                                         <div key={item.label} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
                                             <span className="text-muted-foreground text-xs font-medium">{item.value}</span>
                                             <div
-                                                className="bg-primary/90 hover:bg-primary w-full max-w-14 rounded-t-md transition-colors"
+                                                className="w-full max-w-14 rounded-t-md bg-lime-500 transition-colors hover:bg-lime-400 dark:bg-lime-400"
                                                 style={{ height: `${Math.max((item.value / maxTrend) * 100, item.value ? 8 : 2)}%` }}
                                                 title={`${item.value} tournaments`}
                                             />
@@ -155,7 +161,7 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                         </CardContent>
                     </Card>
 
-                    <Card className="xl:col-span-2">
+                    <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none xl:col-span-2 dark:border-white/8 dark:bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Tournament status</CardTitle>
                             <CardDescription>Current lifecycle distribution.</CardDescription>
@@ -195,7 +201,7 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-5">
-                    <Card className="xl:col-span-2">
+                    <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none xl:col-span-2 dark:border-white/8 dark:bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Popular formats</CardTitle>
                             <CardDescription>Tournaments grouped by bracket format.</CardDescription>
@@ -213,7 +219,7 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                                             </div>
                                             <div className="bg-muted h-2 overflow-hidden rounded-full">
                                                 <div
-                                                    className="bg-chart-2 h-full rounded-full"
+                                                    className="h-full rounded-full bg-lime-500 dark:bg-lime-400"
                                                     style={{ width: `${(item.value / maxMode) * 100}%` }}
                                                 />
                                             </div>
@@ -224,7 +230,7 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                         </CardContent>
                     </Card>
 
-                    <Card className="xl:col-span-3">
+                    <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none xl:col-span-3 dark:border-white/8 dark:bg-white/[0.04]">
                         <CardHeader className="flex-row items-center justify-between gap-3">
                             <div>
                                 <CardTitle>Recent tournaments</CardTitle>
@@ -274,7 +280,10 @@ export default function Dashboard({ stats, tournamentTrend, statusBreakdown, mod
                                                         <span>{progress}%</span>
                                                     </div>
                                                     <div className="bg-muted h-1.5 overflow-hidden rounded-full">
-                                                        <div className="bg-primary h-full rounded-full" style={{ width: `${progress}%` }} />
+                                                        <div
+                                                            className="h-full rounded-full bg-lime-500 dark:bg-lime-400"
+                                                            style={{ width: `${progress}%` }}
+                                                        />
                                                     </div>
                                                 </div>
                                             </Link>

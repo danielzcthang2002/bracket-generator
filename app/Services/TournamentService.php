@@ -9,32 +9,22 @@ use App\Enums\TournamentModeEnum;
 use App\Enums\TournamentStatus;
 use App\Models\Tournament;
 use App\Services\Bracket\Contracts\ModeResolver;
-use App\Services\Bracket\DoubleEliminationService;
-use App\Services\Bracket\FreeForAllService;
-use App\Services\Bracket\RoundRobinService;
-use App\Services\Bracket\SingleEliminationService;
-use App\Services\Bracket\SwissService;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class TournamentService
 {
-
     public function __construct(
         private ModeResolver $resolver,
     ) {}
 
-    /**
-     * @param array $data
-     * @return Tournament
-     */
     public function createTournament(array $data): Tournament
     {
         DB::beginTransaction();
         try {
-            $type = str_replace(' ', '_', $data['tournament_type']);
-            $tournament = new Tournament();
+            $type = $data['mode_type'];
+            $tournament = new Tournament;
             $tournament->name = $data['name'];
             $tournament->open_id = Tournament::generateOpenId();
             $tournament->mode_type = TournamentModeEnum::from($type);
@@ -46,24 +36,27 @@ class TournamentService
             $tournament->max_entry = $data['max_entry'] ?? null;
             $tournament->split_participant = $data['split_participant'] ?? false;
             $tournament->ffa_heat_size = $data['ffa_heat_size'] ?? null;
+            $tournament->ffa_advance_count = $data['ffa_advance_count'] ?? null;
             $tournament->head_to_head_count = $data['head_to_head_count'] ?? null;
             $tournament->rank_by = $data['rank_by'] ?? null;
 
             // Swiss mode specific fields
-            if ($data['tournament_type'] === 'swiss') {
+            if ($data['mode_type'] === 'swiss') {
                 $tournament->points_per_match_win = $data['points_per_match_win'];
                 $tournament->points_per_match_tie = $data['points_per_match_tie'];
                 $tournament->points_per_set_win = $data['points_per_set_win'];
                 $tournament->points_per_set_tie = $data['points_per_set_tie'];
                 $tournament->points_per_bye = $data['points_per_bye'];
+                $tournament->swiss_rounds = $data['swiss_rounds'];
             }
 
             $tournament->save();
             DB::commit();
+
             return $tournament;
         } catch (Exception $th) {
             DB::rollBack();
-            throw new Exception('Failed to create tournament: ' . $th->getMessage());
+            throw new Exception('Failed to create tournament: '.$th->getMessage());
         }
     }
 
@@ -96,40 +89,37 @@ class TournamentService
             }
 
             // Save the updated tournament
-            if (!$tournament->save()) {
+            if (! $tournament->save()) {
                 throw new Exception('Failed to update tournament');
             }
 
             DB::commit();
+
             return $tournament;
         } catch (Exception $th) {
             DB::rollBack();
-            throw new Exception('Failed to update tournament: ' . $th->getMessage());
+            throw new Exception('Failed to update tournament: '.$th->getMessage());
         }
     }
 
-
     /**
      * Show a specific tournament by ID.
-     *
-     * @param string $openId
-     * @return Tournament
      */
     public function getTournamentById(string $openId): Tournament
     {
         $tournament = Tournament::query()
             ->where('open_id', $openId)->firstOrFail();
+
         return $tournament;
     }
 
     /**
      * Get all tournaments.
-     *
-     * @return Collection
      */
     public function getTournaments(): Collection
     {
         $tournaments = Tournament::all();
+
         return $tournaments;
     }
 
@@ -137,9 +127,8 @@ class TournamentService
     {
         $tournament = Tournament::query()
             ->where('open_id', $openId)->firstOrFail();
-        $singleEliminationService = new SingleEliminationService();
 
-        return $singleEliminationService->initialize($tournament);
+        return $this->resolver->resolve($tournament->mode_type->value)->initialize($tournament);
     }
 
     public function startTournament(string $openId): Tournament
@@ -153,10 +142,11 @@ class TournamentService
             $tournament->save();
             $this->resolver->resolve($mode)->initialize($tournament);
             DB::commit();
+
             return $tournament;
         } catch (Exception $th) {
             DB::rollBack();
-            throw new Exception('Failed to start tournament: ' . $th->getMessage());
+            throw new Exception('Failed to start tournament: '.$th->getMessage());
         }
     }
 
@@ -168,17 +158,20 @@ class TournamentService
             ->matches()
             ->where('state', TournamentMatchStateEnum::COMPLETE)
             ->exists();
-        if (! $allMatchesCompleted) throw new Exception("All matches need to be completed to end a tournament.", 1);
+        if (! $allMatchesCompleted) {
+            throw new Exception('All matches need to be completed to end a tournament.', 1);
+        }
 
         DB::beginTransaction();
         try {
             $tournament->status = TournamentStatus::ENDED;
             $tournament->save();
             DB::commit();
+
             return $tournament;
         } catch (Exception $th) {
             DB::rollBack();
-            throw new Exception('Failed to end tournament: ' . $th->getMessage());
+            throw new Exception('Failed to end tournament: '.$th->getMessage());
         }
     }
 }

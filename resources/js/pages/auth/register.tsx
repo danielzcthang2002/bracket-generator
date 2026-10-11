@@ -32,7 +32,7 @@ export default function Register() {
     };
 
     return (
-        <AuthLayout title="Create an account" description="Enter your details below to create your account">
+        <AuthLayout title="Create your account" description="Set up your tournament workspace and build your first bracket.">
             <Head title="Register" />
             <form className="flex flex-col gap-6" onSubmit={submit}>
                 <div className="grid gap-6">
@@ -48,7 +48,8 @@ export default function Register() {
                             value={data.name}
                             onChange={(e) => setData('name', e.target.value)}
                             disabled={processing}
-                            placeholder="Full name"
+                            placeholder="Your full name"
+                            className="h-11 border-black/10 bg-white/70 focus-visible:border-lime-500 focus-visible:ring-lime-500/20 dark:border-white/10 dark:bg-white/5"
                         />
                         <InputError message={errors.name} className="mt-2" />
                     </div>
@@ -64,7 +65,8 @@ export default function Register() {
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
                             disabled={processing}
-                            placeholder="email@example.com"
+                            placeholder="you@example.com"
+                            className="h-11 border-black/10 bg-white/70 focus-visible:border-lime-500 focus-visible:ring-lime-500/20 dark:border-white/10 dark:bg-white/5"
                         />
                         <InputError message={errors.email} />
                     </div>
@@ -80,7 +82,8 @@ export default function Register() {
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
                             disabled={processing}
-                            placeholder="Password"
+                            placeholder="Create a password"
+                            className="h-11 border-black/10 bg-white/70 focus-visible:border-lime-500 focus-visible:ring-lime-500/20 dark:border-white/10 dark:bg-white/5"
                         />
                         <InputError message={errors.password} />
                     </div>
@@ -96,18 +99,24 @@ export default function Register() {
                             value={data.password_confirmation}
                             onChange={(e) => setData('password_confirmation', e.target.value)}
                             disabled={processing}
-                            placeholder="Confirm password"
+                            placeholder="Repeat your password"
+                            className="h-11 border-black/10 bg-white/70 focus-visible:border-lime-500 focus-visible:ring-lime-500/20 dark:border-white/10 dark:bg-white/5"
                         />
                         <InputError message={errors.password_confirmation} />
                     </div>
 
-                    <Button type="submit" className="mt-2 w-full" tabIndex={5} disabled={processing}>
+                    <Button
+                        type="submit"
+                        className="mt-2 h-11 w-full rounded-full bg-[#172012] font-semibold text-white hover:bg-[#2a3522] dark:bg-lime-400 dark:text-[#10140c] dark:hover:bg-lime-300"
+                        tabIndex={5}
+                        disabled={processing}
+                    >
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                         Create account
                     </Button>
                 </div>
 
-                <div className="text-muted-foreground text-center text-sm">
+                <div className="text-center text-sm text-black/45 dark:text-white/45">
                     Already have an account?{' '}
                     <TextLink href={route('login')} tabIndex={6}>
                         Log in

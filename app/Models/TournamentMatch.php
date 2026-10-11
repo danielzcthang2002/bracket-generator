@@ -29,14 +29,14 @@ class TournamentMatch extends Model
         'completed_at',
         'player1_is_prereq_match_loser',
         'player2_is_prereq_match_loser',
-        'match_format'
+        'match_format',
     ];
 
     protected $casts = [
         'is_tie' => 'boolean',
         'player1_is_prereq_match_loser' => 'boolean',
         'player2_is_prereq_match_loser' => 'boolean',
-        'competed_at' => 'datetime',
+        'completed_at' => 'datetime',
         'state' => TournamentMatchStateEnum::class,
         'match_format' => MatchFormatEnum::class,
     ];
@@ -50,6 +50,7 @@ class TournamentMatch extends Model
     {
         return $this->belongsTo(Player::class, 'player1_id');
     }
+
     public function player2(): BelongsTo
     {
         return $this->belongsTo(Player::class, 'player2_id');

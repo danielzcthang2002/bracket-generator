@@ -59,9 +59,9 @@ export default function TournamentEdit({ modeOptions, statusOptions, tournament 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit ${tournament.name}`} />
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+            <div className="flex h-full flex-1 flex-col gap-4 bg-[#f4f6ed] p-4 md:p-6 dark:bg-[#0b0e09]">
                 <TournamentForm
-                    title="Edit Tournament"
+                    title={`Edit ${tournament.name}`}
                     description="Update tournament configuration and save changes."
                     submitLabel="Save changes"
                     modeOptions={modeOptions}

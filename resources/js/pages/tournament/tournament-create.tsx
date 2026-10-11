@@ -54,10 +54,10 @@ export default function TournamentCreate({ modeOptions, statusOptions }: Tournam
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Tournament" />
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+            <div className="flex h-full flex-1 flex-col gap-4 bg-[#f4f6ed] p-4 md:p-6 dark:bg-[#0b0e09]">
                 <TournamentForm
-                    title="Create Tournament"
-                    description="Configure your tournament settings and save to start adding players."
+                    title="Build a new tournament"
+                    description="Choose a format, set your rules, and get ready to add the field."
                     submitLabel="Create tournament"
                     modeOptions={modeOptions}
                     statusOptions={statusOptions}

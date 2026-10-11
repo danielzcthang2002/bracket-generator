@@ -1,22 +1,25 @@
+import { TournamentStatusBadge } from '@/components/tournament-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
 import { BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
-import { TournamentBracket, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
+import { BracketConnectors, TournamentBracket, type BracketConnection, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ChevronDownIcon } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDownIcon, Medal, Trash2, Trophy } from 'lucide-react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 interface TournamentPlayer {
     id: number;
     name: string;
     checked_in: boolean;
     seed: number | null;
+    final_rank: number | null;
 }
 
 interface TournamentMatch {
@@ -91,6 +94,7 @@ interface PreviewSlot {
     name?: string | null;
     seed?: number | null;
     label?: string;
+    prereq_suggested_play_order?: number | null;
 }
 
 interface PreviewMatch {
@@ -103,6 +107,62 @@ interface PreviewMatch {
 
 function previewSlotLabel(slot: PreviewSlot) {
     return slot.type === 'player' ? (slot.name ?? `Player #${slot.id}`) : (slot.label ?? 'TBD');
+}
+
+function PreviewBracketColumns({ rounds }: { rounds: Array<{ round: number; matches: PreviewMatch[] }> }) {
+    const canvasRef = useRef<HTMLDivElement>(null);
+    const [canvas, setCanvas] = useState<HTMLDivElement | null>(null);
+
+    useLayoutEffect(() => setCanvas(canvasRef.current), []);
+
+    const connections: BracketConnection[] = rounds.flatMap(({ matches }) =>
+        matches.flatMap((match) =>
+            [match.player1, match.player2]
+                .map((slot) => slot?.prereq_suggested_play_order)
+                .filter((source): source is number => typeof source === 'number')
+                .map((source) => ({ from: source, to: match.suggested_play_order })),
+        ),
+    );
+
+    return (
+        <div className="overflow-x-auto pb-1">
+            <div ref={canvasRef} className="relative flex min-w-max items-stretch gap-14 py-1">
+                <BracketConnectors container={canvas} connections={connections} />
+                {rounds.map(({ round, matches }) => (
+                    <div key={round} className="relative z-10 flex w-64 flex-col">
+                        <p className="px-1 text-sm font-medium">{round < 0 ? `Lower Round ${Math.abs(round)}` : `Round ${round}`}</p>
+                        <div className="flex flex-1 flex-col justify-around gap-6 py-3">
+                            {matches.map((match) => (
+                                <div
+                                    key={match.suggested_play_order}
+                                    data-bracket-node-id={match.suggested_play_order}
+                                    className="space-y-2 rounded-xl border border-white/10 bg-[#1b2119] p-3 text-sm text-white shadow-lg shadow-black/20"
+                                >
+                                    <p className="text-xs text-white/40">Match {match.suggested_play_order}</p>
+                                    {match.participants ? (
+                                        match.participants.map((slot, index) => (
+                                            <p key={slot.id ?? index} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+                                                {previewSlotLabel(slot)}
+                                            </p>
+                                        ))
+                                    ) : (
+                                        <>
+                                            <p className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+                                                {match.player1 ? previewSlotLabel(match.player1) : 'TBD'}
+                                            </p>
+                                            <p className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+                                                {match.player2 ? previewSlotLabel(match.player2) : 'TBD'}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 function toDisplayLabel(value: string | null) {
@@ -130,15 +190,21 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
     const [deletingPlayer, setDeletingPlayer] = useState<TournamentPlayer | null>(null);
     const [confirmingTournamentDelete, setConfirmingTournamentDelete] = useState(false);
+    const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
     const [playersOpen, setPlayersOpen] = useState(false);
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
     const { delete: destroy, processing: deleteProcessing } = useForm({});
+    const bulkDeleteForm = useForm<{ player_ids: number[] }>({ player_ids: [] });
     const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
     const { post: postEndTournament, processing: endTournamentProcessing } = useForm();
     const isDoubleElimination = tournament.mode_type === 'double_elimination';
     const isFreeForAll = tournament.mode_type === 'free_for_all';
     const isRoundRobin = tournament.mode_type === 'round_robin';
     const isSwiss = tournament.mode_type === 'swiss';
+    const canDeletePlayers = tournament.status !== 'started' && tournament.status !== 'ended';
+    const finalRankings = [...tournament.players]
+        .filter((player) => player.final_rank !== null)
+        .sort((left, right) => (left.final_rank ?? Number.MAX_SAFE_INTEGER) - (right.final_rank ?? Number.MAX_SAFE_INTEGER));
     const showRankAndPoints = isRoundRobin || isSwiss;
     const previewRounds = Object.entries(bracketPreview ?? {})
         .map(([round, matches]) => ({ round: Number(round), matches }))
@@ -152,33 +218,6 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
           : isDoubleElimination
             ? 'A bracket reset final is added only if the lower bracket finalist wins the first final.'
             : 'Based on the currently checked-in players, ordered by registration ID.';
-
-    const renderPreviewRounds = (rounds: typeof previewRounds) => (
-        <div className="flex min-w-max items-start gap-4 pb-1">
-            {rounds.map(({ round, matches }) => (
-                <div key={round} className="flex w-64 flex-col gap-2">
-                    <p className="px-1 text-sm font-medium">{round < 0 ? `Lower Round ${Math.abs(round)}` : `Round ${round}`}</p>
-                    {matches.map((match) => (
-                        <div key={match.suggested_play_order} className="bg-background space-y-2 rounded-md border p-3 text-sm shadow-sm">
-                            <p className="text-muted-foreground text-xs">Match {match.suggested_play_order}</p>
-                            {match.participants ? (
-                                match.participants.map((slot, index) => (
-                                    <p key={slot.id ?? index} className="rounded border px-2 py-1">
-                                        {previewSlotLabel(slot)}
-                                    </p>
-                                ))
-                            ) : (
-                                <>
-                                    <p className="rounded border px-2 py-1">{match.player1 ? previewSlotLabel(match.player1) : 'TBD'}</p>
-                                    <p className="rounded border px-2 py-1">{match.player2 ? previewSlotLabel(match.player2) : 'TBD'}</p>
-                                </>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            ))}
-        </div>
-    );
 
     const submitDeletePlayer = () => {
         if (!deletingPlayer) {
@@ -199,6 +238,23 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
         destroy(route('tournament.destroy', [tournament.open_id]), {
             preserveScroll: true,
             onSuccess: () => setConfirmingTournamentDelete(false),
+        });
+    };
+
+    const togglePlayerSelection = (playerId: number, selected: boolean) => {
+        bulkDeleteForm.setData(
+            'player_ids',
+            selected ? [...bulkDeleteForm.data.player_ids, playerId] : bulkDeleteForm.data.player_ids.filter((selectedId) => selectedId !== playerId),
+        );
+    };
+
+    const submitBulkDelete = () => {
+        bulkDeleteForm.delete(route('tournament.player.bulk.destroy', tournament.open_id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                bulkDeleteForm.reset();
+                setConfirmingBulkDelete(false);
+            },
         });
     };
 
@@ -232,38 +288,43 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`${tournament.name} | Tournament`} />
 
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-                <div className="flex items-center justify-between gap-3">
+            <div className="flex h-full flex-1 flex-col gap-5 bg-[#f4f6ed] p-4 md:p-6 dark:bg-[#0b0e09]">
+                <div className="relative flex flex-col gap-5 overflow-hidden rounded-3xl bg-[#172012] p-6 text-white shadow-xl shadow-black/10 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+                    <div className="absolute -top-20 right-10 size-56 rounded-full bg-lime-400/15 blur-3xl" />
                     <div className="space-y-1">
-                        <h1 className="text-2xl font-semibold">{tournament.name}</h1>
-                        <p className="text-muted-foreground text-sm">Open ID: {tournament.open_id}</p>
+                        <p className="text-sm font-semibold text-lime-300">{toDisplayLabel(tournament.mode_type)}</p>
+                        <h1 className="text-3xl font-bold tracking-[-0.04em]">{tournament.name}</h1>
+                        <p className="text-sm text-white/40">Tournament ID: {tournament.open_id}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="relative flex flex-wrap items-center gap-2">
                         {/* <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} /> */}
-                        <BulkAddPlayerModal
-                            open={openBulkAddPlayerModal}
-                            onOpenChange={setOpenBulkAddPlayerModal}
-                            tournamentOpenId={tournament.open_id}
-                        />
-                        {tournament.status == 'pending' && <Button onClick={startTournament}>Start tournament</Button>}
+                        {tournament.status == 'pending' && (
+                            <Button onClick={startTournament} className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">
+                                Start tournament
+                            </Button>
+                        )}
                         {tournament.status == 'started' && (
-                            <Button variant="destructive" onClick={endTournament}>
+                            <Button variant="destructive" onClick={endTournament} className="rounded-full">
                                 End tournament
                             </Button>
                         )}
-                        <Button asChild>
+                        <Button
+                            asChild
+                            variant="outline"
+                            className="rounded-full border-lime-300/30 bg-lime-300/10 text-lime-200 hover:bg-lime-300/20 hover:text-lime-100"
+                        >
                             <Link href={`/tournaments/${tournament.open_id}/edit`} prefetch>
                                 Edit
                             </Link>
                         </Button>
-                        <Button variant="destructive" type="button" onClick={() => setConfirmingTournamentDelete(true)}>
+                        <Button variant="destructive" type="button" className="rounded-full" onClick={() => setConfirmingTournamentDelete(true)}>
                             Delete
                         </Button>
                     </div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-3">
-                    <Card className="lg:col-span-2">
+                    <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none lg:col-span-2 dark:border-white/8 dark:bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Overview</CardTitle>
                             <CardDescription>{tournament.description || 'No description provided.'}</CardDescription>
@@ -271,7 +332,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                         <CardContent className="grid gap-3 text-sm md:grid-cols-2">
                             <div className="space-y-1">
                                 <p className="text-muted-foreground">Status</p>
-                                <Badge variant="secondary">{toDisplayLabel(tournament.status)}</Badge>
+                                <TournamentStatusBadge status={tournament.status} />
                             </div>
                             <div className="space-y-1">
                                 <p className="text-muted-foreground">Mode</p>
@@ -296,7 +357,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none dark:border-white/8 dark:bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Stats</CardTitle>
                             <CardDescription>Current bracket summary.</CardDescription>
@@ -320,21 +381,97 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                     </Card>
                 </div>
 
+                {tournament.status === 'ended' && (
+                    <Card className="overflow-hidden rounded-2xl border-black/8 bg-[#172012] text-white shadow-xl shadow-black/10 dark:border-white/8">
+                        <CardHeader className="border-b border-white/8">
+                            <div className="flex items-center gap-3">
+                                <span className="grid size-10 place-items-center rounded-xl bg-lime-400 text-[#10140c]">
+                                    <Trophy className="size-5" />
+                                </span>
+                                <div>
+                                    <CardTitle>Final rankings</CardTitle>
+                                    <CardDescription className="mt-1 text-white/45">Final placements for {tournament.name}.</CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                            {finalRankings.length === 0 ? (
+                                <p className="text-sm text-white/45">Final rankings are not available yet.</p>
+                            ) : (
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    {finalRankings.map((player) => (
+                                        <div
+                                            key={player.id}
+                                            className={`flex items-center gap-4 rounded-2xl border p-4 ${
+                                                player.final_rank === 1
+                                                    ? 'border-lime-300/30 bg-lime-300/10'
+                                                    : player.final_rank === 2
+                                                      ? 'border-white/20 bg-white/8'
+                                                      : player.final_rank === 3
+                                                        ? 'border-amber-500/25 bg-amber-500/10'
+                                                        : 'border-white/10 bg-white/[0.035]'
+                                            }`}
+                                        >
+                                            <span
+                                                className={`grid size-10 shrink-0 place-items-center rounded-xl font-bold ${player.final_rank === 1 ? 'bg-lime-400 text-[#10140c]' : 'bg-white/10 text-white/70'}`}
+                                            >
+                                                {player.final_rank && player.final_rank <= 3 ? <Medal className="size-5" /> : player.final_rank}
+                                            </span>
+                                            <div className="min-w-0">
+                                                <p className="truncate font-semibold">{player.name}</p>
+                                                <p className="mt-0.5 text-xs text-white/40">
+                                                    {player.final_rank === 1 ? 'Champion' : `Place #${player.final_rank}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
                 <div className="grid gap-4 xl:grid-cols-1">
                     <Collapsible open={playersOpen} onOpenChange={setPlayersOpen}>
-                        <Card>
+                        <Card className="rounded-2xl border-black/8 bg-white/70 shadow-none dark:border-white/8 dark:bg-white/[0.04]">
                             <CardHeader>
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <CardTitle>Players</CardTitle>
                                         <CardDescription>Registered participants in this tournament.</CardDescription>
                                     </div>
-                                    <CollapsibleTrigger asChild>
-                                        <Button variant="ghost" size="sm" type="button" className="gap-2">
-                                            {playersOpen ? 'Hide' : 'Show'}
-                                            <ChevronDownIcon className={`size-4 transition-transform ${playersOpen ? 'rotate-180' : ''}`} />
-                                        </Button>
-                                    </CollapsibleTrigger>
+                                    <div className="flex items-center gap-2">
+                                        {canDeletePlayers && bulkDeleteForm.data.player_ids.length > 0 && (
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                type="button"
+                                                className="rounded-full"
+                                                onClick={() => setConfirmingBulkDelete(true)}
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                                Delete {bulkDeleteForm.data.player_ids.length}
+                                            </Button>
+                                        )}
+                                        {tournament.status !== 'started' && tournament.status !== 'ended' && (
+                                            <BulkAddPlayerModal
+                                                open={openBulkAddPlayerModal}
+                                                onOpenChange={setOpenBulkAddPlayerModal}
+                                                tournamentOpenId={tournament.open_id}
+                                            />
+                                        )}
+                                        <CollapsibleTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                type="button"
+                                                className="gap-2 rounded-full text-green-800 hover:bg-lime-300/20 hover:text-green-950 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                            >
+                                                {playersOpen ? 'Hide' : 'Show'}
+                                                <ChevronDownIcon className={`size-4 transition-transform ${playersOpen ? 'rotate-180' : ''}`} />
+                                            </Button>
+                                        </CollapsibleTrigger>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CollapsibleContent>
@@ -344,21 +481,45 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                                     ) : (
                                         <div className="space-y-2">
                                             {tournament.players.map((player) => (
-                                                <div key={player.id} className="flex items-center justify-between rounded-md border p-3">
-                                                    <div>
-                                                        <p className="font-medium">{player.name}</p>
-                                                        <p className="text-muted-foreground text-xs">Seed: {player.seed ?? '-'}</p>
+                                                <div
+                                                    key={player.id}
+                                                    className="flex items-center justify-between rounded-xl border border-black/8 bg-white/60 p-3 dark:border-white/8 dark:bg-white/[0.025]"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        {canDeletePlayers && (
+                                                            <Checkbox
+                                                                aria-label={`Select ${player.name}`}
+                                                                checked={bulkDeleteForm.data.player_ids.includes(player.id)}
+                                                                onCheckedChange={(checked) => togglePlayerSelection(player.id, checked === true)}
+                                                            />
+                                                        )}
+                                                        <div>
+                                                            <p className="font-medium">{player.name}</p>
+                                                            <p className="text-muted-foreground text-xs">Seed: {player.seed ?? '-'}</p>
+                                                        </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <Badge variant={player.checked_in ? 'default' : 'outline'}>
                                                             {player.checked_in ? 'Checked In' : 'Pending'}
                                                         </Badge>
-                                                        <Button variant="outline" size="sm" onClick={() => setEditingPlayer(player)}>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="rounded-full border-green-800/15 text-green-800 hover:border-lime-500/40 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                                            onClick={() => setEditingPlayer(player)}
+                                                        >
                                                             Edit
                                                         </Button>
-                                                        <Button variant="destructive" size="sm" onClick={() => setDeletingPlayer(player)}>
-                                                            Delete
-                                                        </Button>
+                                                        {canDeletePlayers && (
+                                                            <Button
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                className="rounded-full"
+                                                                onClick={() => setDeletingPlayer(player)}
+                                                            >
+                                                                Delete
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -370,7 +531,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                     </Collapsible>
 
                     {tournament.status !== 'started' && tournament.status !== 'ended' && (
-                        <Card>
+                        <Card className="overflow-hidden rounded-2xl border-black/8 bg-[#11150f] text-white shadow-none dark:border-white/8">
                             <CardHeader>
                                 <CardTitle>Bracket preview</CardTitle>
                                 <CardDescription>{previewNote}</CardDescription>
@@ -379,12 +540,12 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                                 {previewRounds.length === 0 ? (
                                     <p className="text-muted-foreground text-sm">Check in at least two players to preview the bracket.</p>
                                 ) : (
-                                    <div className="space-y-5">
-                                        <div className="overflow-x-auto">{renderPreviewRounds(upperPreviewRounds)}</div>
+                                    <div className="space-y-5 text-white">
+                                        <PreviewBracketColumns rounds={upperPreviewRounds} />
                                         {lowerPreviewRounds.length > 0 && (
                                             <div className="border-t pt-4">
                                                 <p className="mb-2 text-sm font-semibold">Lower bracket</p>
-                                                <div className="overflow-x-auto">{renderPreviewRounds(lowerPreviewRounds)}</div>
+                                                <PreviewBracketColumns rounds={lowerPreviewRounds} />
                                             </div>
                                         )}
                                     </div>
@@ -393,12 +554,14 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                         </Card>
                     )}
 
-                    <TournamentBracket
-                        modeType={tournament.mode_type}
-                        players={tournament.players}
-                        matches={tournament.matches}
-                        onAddScore={(match: TournamentBracketMatch) => setScoringMatch(match)}
-                    />
+                    {(tournament.status === 'started' || tournament.status === 'ended') && (
+                        <TournamentBracket
+                            modeType={tournament.mode_type}
+                            players={tournament.players}
+                            matches={tournament.matches}
+                            onAddScore={(match: TournamentBracketMatch) => setScoringMatch(match)}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -427,7 +590,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
             />
 
             <Dialog open={deletingPlayer !== null} onOpenChange={(open) => !open && setDeletingPlayer(null)}>
-                <DialogContent>
+                <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
                     <DialogTitle>Delete Player</DialogTitle>
                     <DialogDescription>
                         {deletingPlayer
@@ -437,7 +600,12 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" type="button" onClick={() => setDeletingPlayer(null)}>
+                            <Button
+                                variant="outline"
+                                type="button"
+                                className="rounded-full border-green-800/15 text-green-800 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                onClick={() => setDeletingPlayer(null)}
+                            >
                                 Cancel
                             </Button>
                         </DialogClose>
@@ -448,14 +616,45 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                 </DialogContent>
             </Dialog>
 
+            <Dialog open={confirmingBulkDelete} onOpenChange={setConfirmingBulkDelete}>
+                <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
+                    <DialogTitle>Delete selected players?</DialogTitle>
+                    <DialogDescription>
+                        {bulkDeleteForm.data.player_ids.length} selected players will be removed. Existing bracket slots for those players may become
+                        empty. This action cannot be undone.
+                    </DialogDescription>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" type="button" className="rounded-full">
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button
+                            variant="destructive"
+                            type="button"
+                            className="rounded-full"
+                            onClick={submitBulkDelete}
+                            disabled={bulkDeleteForm.processing}
+                        >
+                            Delete {bulkDeleteForm.data.player_ids.length} players
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={confirmingTournamentDelete} onOpenChange={setConfirmingTournamentDelete}>
-                <DialogContent>
+                <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
                     <DialogTitle>Delete Tournament</DialogTitle>
                     <DialogDescription>Are you sure you want to delete {tournament.name}? This action cannot be undone.</DialogDescription>
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" type="button" onClick={() => setConfirmingTournamentDelete(false)}>
+                            <Button
+                                variant="outline"
+                                type="button"
+                                className="rounded-full border-green-800/15 text-green-800 hover:bg-lime-300/20 dark:border-lime-300/20 dark:text-lime-300 dark:hover:bg-lime-300/10"
+                                onClick={() => setConfirmingTournamentDelete(false)}
+                            >
                                 Cancel
                             </Button>
                         </DialogClose>
