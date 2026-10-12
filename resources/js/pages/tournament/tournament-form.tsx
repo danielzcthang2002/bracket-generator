@@ -36,6 +36,7 @@ interface TournamentFormProps {
     description: string;
     submitLabel: string;
     modeOptions: string[];
+    modeLocked?: boolean;
     statusOptions: string[];
     data: TournamentFormData;
     processing: boolean;
@@ -60,6 +61,7 @@ export default function TournamentForm({
     description,
     submitLabel,
     modeOptions,
+    modeLocked = false,
     statusOptions,
     data,
     processing,
@@ -102,8 +104,8 @@ export default function TournamentForm({
 
                     <div className="grid gap-2">
                         <Label htmlFor="mode_type">Mode</Label>
-                        <Select value={data.mode_type} onValueChange={(value) => setData('mode_type', value)}>
-                            <SelectTrigger id="mode_type" disabled={processing}>
+                        <Select value={data.mode_type} onValueChange={(value) => setData('mode_type', value)} disabled={processing || modeLocked}>
+                            <SelectTrigger id="mode_type">
                                 <SelectValue placeholder="Select mode" />
                             </SelectTrigger>
                             <SelectContent>
@@ -119,8 +121,8 @@ export default function TournamentForm({
 
                     <div className="grid gap-2">
                         <Label htmlFor="status">Status</Label>
-                        <Select value={data.status} onValueChange={(value) => setData('status', value)}>
-                            <SelectTrigger id="status" disabled={processing}>
+                        <Select value={data.status} disabled>
+                            <SelectTrigger id="status">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>
                             <SelectContent>

@@ -65,6 +65,7 @@ export default function TournamentEdit({ modeOptions, statusOptions, tournament 
                     description="Update tournament configuration and save changes."
                     submitLabel="Save changes"
                     modeOptions={modeOptions}
+                    modeLocked={tournament.status === 'started' || tournament.status === 'ended'}
                     statusOptions={statusOptions}
                     data={data}
                     setData={setData}

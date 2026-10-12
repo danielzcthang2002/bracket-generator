@@ -15,6 +15,41 @@ use Illuminate\Support\Facades\DB;
 
 class TournamentService
 {
+    public function validateSwissRounds(Tournament $tournament, ?int $rounds): void
+    {
+        if ($rounds === $tournament->swiss_rounds) {
+            return;
+        }
+        if ($tournament->status === TournamentStatus::ENDED) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'swiss_rounds' => 'Rounds cannot be changed after the tournament ends.',
+            ]);
+        }
+        $minimum = max(1, (int) $tournament->matches()->max('round'));
+        if ($rounds === null || $rounds < $minimum) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'swiss_rounds' => "Choose at least {$minimum} rounds to preserve existing matches.",
+            ]);
+        }
+    }
+
+    public function updateSwissRounds(string $openId, int $rounds): Tournament
+    {
+        return DB::transaction(function () use ($openId, $rounds): Tournament {
+            $tournament = Tournament::query()->where('open_id', $openId)->lockForUpdate()->firstOrFail();
+            if ($tournament->mode_type !== TournamentModeEnum::SWISS) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['swiss_rounds' => 'Rounds can only be set for Swiss tournaments.']);
+            }
+            $this->validateSwissRounds($tournament, $rounds);
+            $tournament->update(['swiss_rounds' => $rounds]);
+            if ($tournament->status === TournamentStatus::STARTED) {
+                $this->resolver->resolve('swiss')->initialize($tournament);
+            }
+
+            return $tournament;
+        });
+    }
+
     public function __construct(
         private ModeResolver $resolver,
     ) {}
@@ -25,6 +60,7 @@ class TournamentService
         try {
             $type = $data['mode_type'];
             $tournament = new Tournament;
+            $tournament->status = TournamentStatus::PENDING;
             $tournament->name = $data['name'];
             $tournament->open_id = Tournament::generateOpenId();
             $tournament->mode_type = TournamentModeEnum::from($type);
@@ -62,6 +98,16 @@ class TournamentService
 
     public function updateTournament(string $openId, array $data): Tournament
     {
+        $existing = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        if (($data['mode_type'] ?? $existing->mode_type->value) === 'swiss' && array_key_exists('swiss_rounds', $data)) {
+            $this->validateSwissRounds($existing, isset($data['swiss_rounds']) ? (int) $data['swiss_rounds'] : null);
+        }
+        if (in_array($existing->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+            && isset($data['mode_type']) && $data['mode_type'] !== $existing->mode_type->value) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'mode_type' => 'Mode cannot be changed after the tournament starts.',
+            ]);
+        }
         DB::beginTransaction();
         try {
             $tournament = Tournament::query()
@@ -78,6 +124,9 @@ class TournamentService
             $tournament->ffa_heat_size = $data['ffa_heat_size'] ?? $tournament->ffa_heat_size;
             $tournament->head_to_head_count = $data['head_to_head_count'] ?? $tournament->head_to_head_count;
             $tournament->rank_by = $data['rank_by'] ?? $tournament->rank_by;
+            if ($tournament->mode_type === TournamentModeEnum::SWISS && array_key_exists('swiss_rounds', $data)) {
+                $tournament->swiss_rounds = $data['swiss_rounds'];
+            }
 
             // Swiss mode specific fields
             if ($data['mode_type'] === 'swiss') {
@@ -91,6 +140,11 @@ class TournamentService
             // Save the updated tournament
             if (! $tournament->save()) {
                 throw new Exception('Failed to update tournament');
+            }
+
+            if ($tournament->mode_type === TournamentModeEnum::SWISS && $tournament->wasChanged('swiss_rounds')
+                && $tournament->status === TournamentStatus::STARTED) {
+                $this->resolver->resolve('swiss')->initialize($tournament);
             }
 
             DB::commit();

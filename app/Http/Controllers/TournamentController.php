@@ -13,6 +13,7 @@ use App\Services\TournamentMatchService;
 use App\Services\TournamentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -22,11 +23,32 @@ class TournamentController extends Controller
 {
     public function index(Request $request): Response
     {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'mode' => ['nullable', Rule::in(TournamentModeEnum::options())],
+            'status' => ['nullable', Rule::in(TournamentStatus::options())],
+        ]);
+        $filters = [
+            'search' => trim($validated['search'] ?? ''),
+            'mode' => $validated['mode'] ?? '',
+            'status' => $validated['status'] ?? '',
+        ];
+
         $tournaments = Tournament::query()
             ->withCount(['players', 'matches'])
+            ->when($filters['search'] !== '', function ($query) use ($filters) {
+                $query->where(function ($query) use ($filters) {
+                    $query->where('name', 'like', '%'.$filters['search'].'%')
+                        ->orWhere('open_id', 'like', '%'.$filters['search'].'%');
+                });
+            })
+            ->when($filters['mode'] !== '', fn ($query) => $query->where('mode_type', $filters['mode']))
+            ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
             ->latest()
-            ->get()
-            ->map(function (Tournament $tournament): array {
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString()
+            ->through(function (Tournament $tournament): array {
                 return [
                     'id' => $tournament->id,
                     'name' => $tournament->name,
@@ -39,11 +61,13 @@ class TournamentController extends Controller
                     'matches_count' => $tournament->matches_count,
                     'created_at' => $tournament->created_at?->toIso8601String(),
                 ];
-            })
-            ->values();
+            });
 
         return Inertia::render('tournament/tournament-index', [
             'tournaments' => $tournaments,
+            'filters' => $filters,
+            'modeOptions' => TournamentModeEnum::options(),
+            'statusOptions' => TournamentStatus::options(),
         ]);
     }
 
@@ -69,7 +93,7 @@ class TournamentController extends Controller
             'require_check_in' => $validated['require_check_in'] ?? false,
             'check_in_time' => $validated['check_in_time'] ?? null,
             'max_entry' => $validated['max_entry'] ?? null,
-            'status' => $validated['status'],
+            'status' => TournamentStatus::PENDING,
             'split_participant' => $validated['split_participant'] ?? false,
             'ffa_heat_size' => $validated['ffa_heat_size'] ?? null,
             'ffa_advance_count' => $validated['ffa_advance_count'] ?? null,
@@ -211,7 +235,21 @@ class TournamentController extends Controller
         $validated = $this->validateTournament($request);
 
         $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
-        $tournament->update($validated);
+        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+            && $validated['mode_type'] !== $tournament->mode_type->value) {
+            throw ValidationException::withMessages(['mode_type' => 'Mode cannot be changed after the tournament starts.']);
+        }
+        $service = app(TournamentService::class);
+        if ($validated['mode_type'] === 'swiss' && array_key_exists('swiss_rounds', $validated)) {
+            $service->validateSwissRounds($tournament, isset($validated['swiss_rounds']) ? (int) $validated['swiss_rounds'] : null);
+        }
+        DB::transaction(function () use ($tournament, $validated, $service): void {
+            $tournament->update($validated);
+            if ($tournament->mode_type === TournamentModeEnum::SWISS && $tournament->wasChanged('swiss_rounds')
+                && $tournament->status === TournamentStatus::STARTED) {
+                $service->generateMatches($tournament->open_id);
+            }
+        });
 
         return redirect()
             ->route('tournament.show', $tournament->open_id)
@@ -240,7 +278,6 @@ class TournamentController extends Controller
             'require_check_in' => ['sometimes', 'boolean'],
             'check_in_time' => ['nullable', 'integer', 'min:1'],
             'max_entry' => ['nullable', 'integer', 'min:2'],
-            'status' => ['required', Rule::in(TournamentStatus::options())],
             'split_participant' => ['sometimes', 'boolean'],
             'ffa_heat_size' => ['nullable', 'integer', 'min:2'],
             'ffa_advance_count' => ['nullable', 'integer', 'min:1'],
@@ -253,6 +290,14 @@ class TournamentController extends Controller
             'points_per_bye' => ['nullable', 'numeric', 'min:0'],
             'swiss_rounds' => ['nullable', 'integer', 'min:1'],
         ]);
+    }
+
+    public function updateSwissRounds(Request $request, string $openId, TournamentService $service): RedirectResponse
+    {
+        $validated = $request->validate(['swiss_rounds' => ['required', 'integer', 'min:1']]);
+        $service->updateSwissRounds($openId, (int) $validated['swiss_rounds']);
+
+        return redirect()->route('tournament.show', $openId)->with('success', 'Swiss rounds updated successfully.');
     }
 
     public function storePlayer(Request $request, string $openId): RedirectResponse
@@ -325,12 +370,18 @@ class TournamentController extends Controller
             ->where('tournament_id', $tournament->id)
             ->firstOrFail();
 
-        $isCheckedIn = $validated['checked_in'] ?? false;
+        $isCheckedIn = $validated['checked_in'] ?? $player->checked_in;
+        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+            && $isCheckedIn !== $player->checked_in) {
+            throw ValidationException::withMessages(['checked_in' => 'Check-in cannot be changed after the tournament starts.']);
+        }
 
         $player->update([
             'name' => $validated['name'],
             'checked_in' => $isCheckedIn,
-            'checked_in_at' => $isCheckedIn ? ($player->checked_in_at ?? now()) : null,
+            'checked_in_at' => $isCheckedIn === $player->checked_in
+                ? $player->checked_in_at
+                : ($isCheckedIn ? now() : null),
         ]);
 
         return redirect()

@@ -226,13 +226,14 @@ export function BulkAddPlayerModal({ open, onOpenChange, tournamentOpenId }: Bul
 }
 
 interface EditPlayerModalProps {
+    checkInLocked?: boolean;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     tournamentOpenId: string;
     player: PlayerSummary | null;
 }
 
-export function EditPlayerModal({ open, onOpenChange, tournamentOpenId, player }: EditPlayerModalProps) {
+export function EditPlayerModal({ open, onOpenChange, tournamentOpenId, player, checkInLocked = false }: EditPlayerModalProps) {
     const { data, setData, put, processing, errors, reset, clearErrors } = useForm<PlayerModalFormData>({
         name: '',
         checked_in: false,
@@ -303,7 +304,7 @@ export function EditPlayerModal({ open, onOpenChange, tournamentOpenId, player }
                             id="edit_player_checked_in"
                             checked={data.checked_in}
                             onCheckedChange={(checked) => setData('checked_in', Boolean(checked))}
-                            disabled={processing}
+                            disabled={processing || checkInLocked}
                         />
                         <Label htmlFor="edit_player_checked_in">Checked in</Label>
                     </div>

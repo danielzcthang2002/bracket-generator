@@ -1,3 +1,4 @@
+import InputError from '@/components/input-error';
 import { TournamentStatusBadge } from '@/components/tournament-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
 import { BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
@@ -185,7 +188,6 @@ function toDisplayDate(value: string | null) {
 }
 
 export default function TournamentShow({ tournament, bracketPreview }: TournamentShowProps) {
-    const [openAddPlayerModal, setOpenAddPlayerModal] = useState(false);
     const [openBulkAddPlayerModal, setOpenBulkAddPlayerModal] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
     const [deletingPlayer, setDeletingPlayer] = useState<TournamentPlayer | null>(null);
@@ -201,6 +203,12 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     const isFreeForAll = tournament.mode_type === 'free_for_all';
     const isRoundRobin = tournament.mode_type === 'round_robin';
     const isSwiss = tournament.mode_type === 'swiss';
+    const minimumSwissRounds = Math.max(1, ...tournament.matches.map((match) => match.round ?? 0));
+    const swissRoundsForm = useForm({
+        swiss_rounds: String(
+            tournament.swiss_rounds ?? Math.max(1, Math.ceil(Math.log2(tournament.players.filter((player) => player.checked_in).length || 1))),
+        ),
+    });
     const canDeletePlayers = tournament.status !== 'started' && tournament.status !== 'ended';
     const finalRankings = [...tournament.players]
         .filter((player) => player.final_rank !== null)
@@ -338,6 +346,41 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                                 <p className="text-muted-foreground">Mode</p>
                                 <p>{toDisplayLabel(tournament.mode_type)}</p>
                             </div>
+                            {isSwiss && (
+                                <form
+                                    className="grid gap-2 md:col-span-2"
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+                                        swissRoundsForm.put(route('tournament.swiss-rounds.update', tournament.open_id), { preserveScroll: true });
+                                    }}
+                                >
+                                    <Label htmlFor="detail-swiss-rounds">Swiss rounds</Label>
+                                    <div className="flex flex-wrap items-end gap-3">
+                                        <Input
+                                            id="detail-swiss-rounds"
+                                            type="number"
+                                            min={minimumSwissRounds}
+                                            step={1}
+                                            required
+                                            className="w-full sm:w-36"
+                                            value={swissRoundsForm.data.swiss_rounds}
+                                            onChange={(event) => swissRoundsForm.setData('swiss_rounds', event.target.value)}
+                                            disabled={swissRoundsForm.processing || tournament.status === 'ended'}
+                                        />
+                                        <Button
+                                            type="submit"
+                                            disabled={swissRoundsForm.processing || tournament.status === 'ended'}
+                                            className="rounded-full bg-[#172012] px-6 font-semibold text-white hover:bg-[#2a3522] dark:bg-lime-400 dark:text-[#10140c] dark:hover:bg-lime-300"
+                                        >
+                                            {swissRoundsForm.processing ? 'Saving rounds…' : 'Save rounds'}
+                                        </Button>
+                                    </div>
+                                    <p className="text-muted-foreground text-xs">
+                                        The next round is generated when the current round is complete. Existing matches are preserved.
+                                    </p>
+                                    <InputError message={swissRoundsForm.errors.swiss_rounds} />
+                                </form>
+                            )}
                             <div className="space-y-1">
                                 <p className="text-muted-foreground">Start At</p>
                                 <p>{toDisplayDate(tournament.start_at)}</p>
@@ -560,6 +603,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                             players={tournament.players}
                             matches={tournament.matches}
                             onAddScore={(match: TournamentBracketMatch) => setScoringMatch(match)}
+                            scoresLocked={tournament.status === 'ended'}
                         />
                     )}
                 </div>
@@ -587,6 +631,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                 }}
                 tournamentOpenId={tournament.open_id}
                 player={editingPlayer}
+                checkInLocked={tournament.status === 'started' || tournament.status === 'ended'}
             />
 
             <Dialog open={deletingPlayer !== null} onOpenChange={(open) => !open && setDeletingPlayer(null)}>
@@ -609,7 +654,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <Button variant="destructive" type="button" onClick={submitDeletePlayer} disabled={deleteProcessing}>
+                        <Button variant="destructive" type="button" className="rounded-full" onClick={submitDeletePlayer} disabled={deleteProcessing}>
                             Delete player
                         </Button>
                     </DialogFooter>
@@ -658,7 +703,13 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <Button variant="destructive" type="button" onClick={submitDeleteTournament} disabled={deleteProcessing}>
+                        <Button
+                            variant="destructive"
+                            type="button"
+                            className="rounded-full"
+                            onClick={submitDeleteTournament}
+                            disabled={deleteProcessing}
+                        >
                             Delete tournament
                         </Button>
                     </DialogFooter>

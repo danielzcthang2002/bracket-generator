@@ -42,6 +42,7 @@ export interface TournamentBracketMatch {
 }
 
 interface TournamentBracketProps {
+    scoresLocked?: boolean;
     modeType: string | null;
     players: TournamentBracketPlayer[];
     matches: TournamentBracketMatch[];
@@ -223,7 +224,9 @@ function BracketColumns({
     isLowerBracket,
     modeType,
     onAddScore,
+    scoresLocked,
 }: {
+    scoresLocked: boolean;
     rounds: BracketRound[];
     playerById: Record<number, TournamentBracketPlayer>;
     isLowerBracket: boolean;
@@ -307,7 +310,7 @@ function BracketColumns({
                                                         size="sm"
                                                         className="h-6 rounded-full border-lime-300/30 bg-lime-300/10 px-2 text-[10px] font-semibold text-lime-300 hover:bg-lime-300 hover:text-[#10140c]"
                                                         onClick={() => onAddScore(match)}
-                                                        disabled={!canAddScore}
+                                                        disabled={scoresLocked || !canAddScore}
                                                         type="button"
                                                     >
                                                         Add score
@@ -380,7 +383,7 @@ function BracketColumns({
     );
 }
 
-export function TournamentBracket({ modeType, players, matches, onAddScore }: TournamentBracketProps) {
+export function TournamentBracket({ modeType, players, matches, onAddScore, scoresLocked = false }: TournamentBracketProps) {
     const playerById = players.reduce<Record<number, TournamentBracketPlayer>>((accumulator, player) => {
         accumulator[player.id] = player;
         return accumulator;
@@ -427,6 +430,7 @@ export function TournamentBracket({ modeType, players, matches, onAddScore }: To
                                 isLowerBracket={false}
                                 modeType={modeType}
                                 onAddScore={onAddScore}
+                                scoresLocked={scoresLocked}
                             />
                         </div>
 
@@ -439,6 +443,7 @@ export function TournamentBracket({ modeType, players, matches, onAddScore }: To
                                     isLowerBracket={true}
                                     modeType={modeType}
                                     onAddScore={onAddScore}
+                                    scoresLocked={scoresLocked}
                                 />
                             </div>
                         ) : null}

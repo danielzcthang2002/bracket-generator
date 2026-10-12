@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Braces, Check, Clipboard, ExternalLink, Menu, Trophy, X } from 'lucide-react';
 import { useState } from 'react';
+import { type ApiField, getEndpointFields } from './api-doc-fields';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -289,6 +290,25 @@ function CodeBlock({ code }: { code: string }) {
 }
 
 function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
+    const fields = getEndpointFields(endpoint.method, endpoint.path);
+    const pathFields: ApiField[] = [
+        ...(endpoint.path.includes('{openId}')
+            ? [
+                  {
+                      name: 'openId',
+                      type: 'string',
+                      rule: 'Required',
+                      description: 'Public tournament open_id from a tournament response; not its internal numeric id.',
+                  },
+              ]
+            : []),
+        ...(endpoint.path.includes('{playerId}')
+            ? [{ name: 'playerId', type: 'integer', rule: 'Required', description: 'Participant id belonging to this tournament.' }]
+            : []),
+        ...(endpoint.path.includes('{matchId}')
+            ? [{ name: 'matchId', type: 'integer', rule: 'Required', description: 'Generated match id belonging to this tournament.' }]
+            : []),
+    ];
     return (
         <article className="overflow-hidden rounded-2xl border border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.035]">
             <div className="flex flex-col gap-3 border-b border-black/8 p-5 sm:flex-row sm:items-center dark:border-white/8">
@@ -299,6 +319,12 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
             </div>
             <div className="space-y-5 p-5">
                 <p className="text-sm leading-6 text-black/55 dark:text-white/50">{endpoint.description}</p>
+                {pathFields.length > 0 && <FieldTable title="Path parameters" fields={pathFields} />}
+                {fields.request.length > 0 ? (
+                    <FieldTable title="Request fields" fields={fields.request} />
+                ) : (
+                    <p className="text-sm text-black/55 dark:text-white/50">No request body is required.</p>
+                )}
                 {endpoint.body && (
                     <div>
                         <p className="mb-2 text-[10px] font-semibold tracking-[0.15em] text-black/35 uppercase dark:text-white/35">Request body</p>
@@ -313,8 +339,45 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
                         <CodeBlock code={endpoint.response} />
                     </div>
                 )}
+                <div className="space-y-3">
+                    <p className="text-sm leading-6 text-black/55 dark:text-white/50">{fields.responseDescription}</p>
+                    {fields.response.length > 0 && <FieldTable title="Response fields inside data" fields={fields.response} />}
+                </div>
             </div>
         </article>
+    );
+}
+
+function FieldTable({ title, fields }: { title: string; fields: ApiField[] }) {
+    return (
+        <div>
+            <h4 className="mb-2 text-xs font-semibold text-black/60 dark:text-white/60">{title}</h4>
+            <div className="overflow-x-auto rounded-xl border border-black/8 dark:border-white/10">
+                <table className="w-full text-left text-xs">
+                    <thead className="bg-black/[0.03] dark:bg-white/5">
+                        <tr>
+                            {['Field', 'Type', 'Requirement', 'Explanation'].map((heading) => (
+                                <th key={heading} scope="col" className="px-3 py-3 font-semibold">
+                                    {heading}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {fields.map((field) => (
+                            <tr key={field.name} className="border-t border-black/8 align-top dark:border-white/10">
+                                <th scope="row" className="px-3 py-3 font-mono font-medium break-words">
+                                    {field.name}
+                                </th>
+                                <td className="px-3 py-3 font-mono text-black/60 dark:text-white/60">{field.type}</td>
+                                <td className="px-3 py-3 text-black/60 dark:text-white/60">{field.rule}</td>
+                                <td className="min-w-64 px-3 py-3 leading-6 text-black/55 dark:text-white/50">{field.description}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     );
 }
 
@@ -427,6 +490,10 @@ export default function ApiDocs() {
                                 Successful responses use a consistent envelope. Collection responses also include a{' '}
                                 <code className="rounded bg-black/5 px-1.5 py-0.5 dark:bg-white/10">meta.count</code> value.
                             </p>
+                            <p className="mt-2 text-sm leading-6 text-black/50 dark:text-white/45">
+                                Send Content-Type: application/json for JSON request bodies and Accept: application/json for JSON responses and
+                                errors. Examples show representative fields; the field tables describe additional and conditional response fields.
+                            </p>
                             <div className="mt-6 grid gap-4 lg:grid-cols-2">
                                 <CodeBlock
                                     code={`{
@@ -444,15 +511,50 @@ export default function ApiDocs() {
 }`}
                                 />
                             </div>
+                            <div className="mt-6">
+                                <FieldTable
+                                    title="Response envelope"
+                                    fields={[
+                                        {
+                                            name: 'message',
+                                            type: 'string',
+                                            rule: 'Returned',
+                                            description: 'Human-readable outcome or error description.',
+                                        },
+                                        {
+                                            name: 'data',
+                                            type: 'object | array | null',
+                                            rule: 'Success',
+                                            description:
+                                                'Resource object for a single result, array for a collection, round-keyed object for previews, or null for actions with no resource.',
+                                        },
+                                        {
+                                            name: 'meta.count',
+                                            type: 'integer',
+                                            rule: 'Collections',
+                                            description: 'Number of items returned; preview responses count matches across all rounds.',
+                                        },
+                                        {
+                                            name: 'errors',
+                                            type: 'object',
+                                            rule: 'Validation errors',
+                                            description:
+                                                'Maps invalid request field names to arrays of error messages. Send Accept: application/json to receive JSON validation errors.',
+                                        },
+                                    ]}
+                                />
+                            </div>
                             <div className="mt-6 flex flex-wrap gap-2">
-                                {['200 OK', '201 Created', '204 No Content', '404 Not Found', '422 Validation Error'].map((status) => (
-                                    <span
-                                        key={status}
-                                        className="rounded-full border border-black/8 bg-white/60 px-3 py-1.5 font-mono text-xs text-black/55 dark:border-white/8 dark:bg-white/5 dark:text-white/50"
-                                    >
-                                        {status}
-                                    </span>
-                                ))}
+                                {['200 OK', '201 Created', '204 No Content', '404 Not Found', '409 Conflict', '422 Validation Error'].map(
+                                    (status) => (
+                                        <span
+                                            key={status}
+                                            className="rounded-full border border-black/8 bg-white/60 px-3 py-1.5 font-mono text-xs text-black/55 dark:border-white/8 dark:bg-white/5 dark:text-white/50"
+                                        >
+                                            {status}
+                                        </span>
+                                    ),
+                                )}
                             </div>
                         </section>
 

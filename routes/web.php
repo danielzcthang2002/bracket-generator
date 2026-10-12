@@ -23,6 +23,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('{openId}/edit', [TournamentController::class, 'edit'])->name('tournament.edit');
         Route::delete('{openId}', [TournamentController::class, 'destroy'])->name('tournament.destroy');
         Route::put('{openId}', [TournamentController::class, 'update'])->name('tournament.update');
+        Route::put('{openId}/swiss-rounds', [TournamentController::class, 'updateSwissRounds'])->name('tournament.swiss-rounds.update');
         Route::get('{openId}', [TournamentController::class, 'show'])->name('tournament.show');
         Route::post('{openId}/matches/{matchId}/score', [TournamentController::class, 'updateMatchScore'])->name('tournament.match.score.update');
         Route::post('{openId}/matches/{matchId}/ffa-score', [TournamentController::class, 'updateFfaMatchScores'])->name('tournament.match.score.update-ffa');

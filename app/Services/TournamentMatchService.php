@@ -21,6 +21,15 @@ use Illuminate\Support\Str;
 
 class TournamentMatchService
 {
+    private function ensureScoresEditable(TournamentMatch $match): void
+    {
+        if (Tournament::findOrFail($match->tournament_id)->status === \App\Enums\TournamentStatus::ENDED) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'scores' => 'Scores cannot be changed after the tournament ends.',
+            ]);
+        }
+    }
+
     public function __construct(
         private ModeResolver $resolver,
     ) {}
@@ -51,6 +60,7 @@ class TournamentMatchService
     public function updateMatchScores(int $matchId, string $scoresCsv, string|int|null $winnerId): TournamentMatch
     {
         $match = TournamentMatch::findOrFail($matchId);
+        $this->ensureScoresEditable($match);
         $player1Id = $match->player1_id;
         $player2Id = $match->player2_id;
 
@@ -145,6 +155,7 @@ class TournamentMatchService
     public function updateFfaMatchScores(int $matchId, array $participantsData): TournamentMatch
     {
         $match = TournamentMatch::query()->with('participants')->findOrFail($matchId);
+        $this->ensureScoresEditable($match);
         $participants = $match->participants;
 
         if ($participants->isEmpty()) {
