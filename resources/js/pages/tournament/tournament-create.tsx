@@ -44,10 +44,24 @@ const initialData: TournamentFormData = {
 };
 
 export default function TournamentCreate({ modeOptions, statusOptions }: TournamentCreateProps) {
-    const { data, setData, post, processing, errors } = useForm<TournamentFormData>(initialData);
+    const { data, setData, transform, post, processing, errors } = useForm<TournamentFormData>(initialData);
 
     const onSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        transform((formData) => {
+            if (formData.mode_type !== 'swiss' || Number(formData.swiss_rounds) >= 1) {
+                return formData;
+            }
+
+            const maxEntry = Math.max(1, Number(formData.max_entry) || 1);
+
+            return {
+                ...formData,
+                swiss_rounds: String(Math.max(1, Math.ceil(Math.log2(maxEntry)))),
+            };
+        });
+
         post(route('tournament.store'));
     };
 

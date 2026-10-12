@@ -20,7 +20,7 @@ class DoubleEliminationService extends ModeService implements HasMode
      */
     public function previewBracket(Tournament $tournament): array
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         if ($players->count() < 2) {
             return [];
         }
@@ -183,7 +183,7 @@ class DoubleEliminationService extends ModeService implements HasMode
 
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         $numPlayers = $players->count();
         $splitParticipant = (bool) ($tournament->split_participant ?? false);
 

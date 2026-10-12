@@ -76,7 +76,7 @@ class FreeForAllService extends ModeService implements HasMode
 
     public function previewBracket(Tournament $tournament): array
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         if ($players->count() < 2) {
             return [];
         }
@@ -95,7 +95,7 @@ class FreeForAllService extends ModeService implements HasMode
 
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         $numPlayers = $players->count();
 
         if ($numPlayers < 2) {
@@ -303,9 +303,7 @@ class FreeForAllService extends ModeService implements HasMode
 
         $seeds = $tournament->players()->whereIn('id', $advancerIds)->pluck('seed', 'id');
 
-        return $tournament->players()
-            ->whereIn('id', $advancerIds)
-            ->get()
+        return $this->getPlayers($tournament, $advancerIds->all())
             ->sortBy(function ($player) use ($ranks, $seeds) {
                 return [
                     $ranks[$player->id] ?? PHP_INT_MAX,

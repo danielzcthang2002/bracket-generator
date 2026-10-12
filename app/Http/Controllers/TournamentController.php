@@ -9,6 +9,7 @@ use App\Enums\TournamentStatus;
 use App\Models\Player;
 use App\Models\Tournament;
 use App\Services\Bracket\Contracts\ModeResolver;
+use App\Services\PlayerService;
 use App\Services\TournamentMatchService;
 use App\Services\TournamentService;
 use Illuminate\Http\RedirectResponse;
@@ -300,21 +301,18 @@ class TournamentController extends Controller
         return redirect()->route('tournament.show', $openId)->with('success', 'Swiss rounds updated successfully.');
     }
 
-    public function storePlayer(Request $request, string $openId): RedirectResponse
+    public function storePlayer(Request $request, string $openId, PlayerService $playerService): RedirectResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'checked_in' => ['sometimes', 'boolean'],
         ]);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
-
-        Player::query()->create([
+        $playerService->createPlayer([
             'name' => $validated['name'],
-            'tournament_id' => $tournament->id,
             'checked_in' => $validated['checked_in'] ?? false,
             'checked_in_at' => ($validated['checked_in'] ?? false) ? now() : null,
-        ]);
+        ], $openId);
 
         return redirect()
             ->route('tournament.show', $openId)
@@ -335,21 +333,29 @@ class TournamentController extends Controller
         }
         $prefix = trim($validated['prefix']);
         $count = (int) $validated['count'];
-        $timestamp = now();
-        $players = [];
+        DB::transaction(function () use ($tournament, $prefix, $count): void {
+            $latestSeed = Player::query()
+                ->where('tournament_id', $tournament->id)
+                ->lockForUpdate()
+                ->orderByDesc('seed')
+                ->value('seed') ?? 0;
+            $timestamp = now();
+            $players = [];
 
-        for ($index = 1; $index <= $count; $index++) {
-            $players[] = [
-                'name' => sprintf('%s %d', $prefix, $index),
-                'tournament_id' => $tournament->id,
-                'checked_in' => true,
-                'checked_in_at' => null,
-                'created_at' => $timestamp,
-                'updated_at' => $timestamp,
-            ];
-        }
+            for ($index = 1; $index <= $count; $index++) {
+                $players[] = [
+                    'name' => sprintf('%s %d', $prefix, $index),
+                    'tournament_id' => $tournament->id,
+                    'seed' => $latestSeed + $index,
+                    'checked_in' => true,
+                    'checked_in_at' => null,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }
 
-        Player::query()->insert($players);
+            Player::query()->insert($players);
+        });
 
         return redirect()
             ->route('tournament.show', $openId)
@@ -387,6 +393,29 @@ class TournamentController extends Controller
         return redirect()
             ->route('tournament.show', $openId)
             ->with('success', 'Player updated successfully.');
+    }
+
+    public function swapPlayerSeeds(Request $request, string $openId, PlayerService $playerService): RedirectResponse
+    {
+        $validated = $request->validate([
+            'first_player_id' => ['required', 'integer', 'different:second_player_id'],
+            'second_player_id' => ['required', 'integer'],
+        ]);
+
+        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $playerIds = [(int) $validated['first_player_id'], (int) $validated['second_player_id']];
+
+        if ($tournament->players()->whereKey($playerIds)->count() !== 2) {
+            throw ValidationException::withMessages([
+                'players' => 'Both players must belong to this tournament.',
+            ]);
+        }
+
+        $playerService->swapSeeds($playerIds[0], $playerIds[1]);
+
+        return redirect()
+            ->route('tournament.show', $openId)
+            ->with('success', 'Player seeds swapped successfully.');
     }
 
     public function destroyPlayer(string $openId, int $playerId): RedirectResponse

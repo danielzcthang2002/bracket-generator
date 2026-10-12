@@ -30,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('{openId}/players', [TournamentController::class, 'storePlayer'])->name('tournament.player.store');
         Route::post('{openId}/players/bulk', [TournamentController::class, 'storePlayersBulk'])->name('tournament.player.bulk.store');
         Route::delete('{openId}/players/bulk', [TournamentController::class, 'destroyPlayersBulk'])->name('tournament.player.bulk.destroy');
+        Route::put('{openId}/players/swap-seeds', [TournamentController::class, 'swapPlayerSeeds'])->name('tournament.player.seeds.swap');
         Route::put('{openId}/players/{playerId}', [TournamentController::class, 'updatePlayer'])->name('tournament.player.update');
         Route::delete('{openId}/players/{playerId}', [TournamentController::class, 'destroyPlayer'])->name('tournament.player.destroy');
 

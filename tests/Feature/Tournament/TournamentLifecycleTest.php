@@ -48,6 +48,20 @@ it('allows mode and check-in edits before starting but ignores status edits', fu
     expect($player->fresh()->checked_in)->toBeTrue();
 });
 
+it('swaps player seeds from the bracket preview', function () {
+    $tournament = Tournament::create(['name' => 'Cup', 'open_id' => 'RESEED', 'mode_type' => 'single_elimination', 'status' => 'pending']);
+    $firstPlayer = $tournament->players()->create(['name' => 'Alice', 'seed' => 1, 'checked_in' => true]);
+    $secondPlayer = $tournament->players()->create(['name' => 'Bob', 'seed' => 2, 'checked_in' => true]);
+
+    $this->put('/tournaments/RESEED/players/swap-seeds', [
+        'first_player_id' => $firstPlayer->id,
+        'second_player_id' => $secondPlayer->id,
+    ])->assertSessionHasNoErrors()->assertRedirect('/tournaments/RESEED');
+
+    expect($firstPlayer->fresh()->seed)->toBe(2)
+        ->and($secondPlayer->fresh()->seed)->toBe(1);
+});
+
 it('rejects all score updates after ending', function () {
     $tournament = Tournament::create(['name' => 'Cup', 'open_id' => 'ENDED', 'mode_type' => 'single_elimination', 'status' => 'ended']);
     $match = $tournament->matches()->create(['round' => 1, 'state' => 'pending', 'suggested_play_order' => 1]);

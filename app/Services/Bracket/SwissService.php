@@ -55,7 +55,7 @@ class SwissService extends ModeService implements HasMode
 {
     public function previewBracket(Tournament $tournament): array
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         if ($players->count() < 2) {
             return [];
         }
@@ -86,7 +86,7 @@ class SwissService extends ModeService implements HasMode
 
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         $numPlayers = $players->count();
 
         if ($numPlayers < 2) {
@@ -340,7 +340,7 @@ class SwissService extends ModeService implements HasMode
 
     private function assignFinalRanks(Tournament $tournament): void
     {
-        $players = $tournament->players()->checkedIn()->get();
+        $players = $this->getPlayers($tournament);
         $standings = $this->computeStandings($tournament, $players);
 
         // Group players into tiers of equal points - Swiss, like round

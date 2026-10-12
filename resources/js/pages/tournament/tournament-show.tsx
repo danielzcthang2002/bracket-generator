@@ -13,8 +13,8 @@ import { MatchScoreModal } from '@/pages/tournament/match-score-modal';
 import { BulkAddPlayerModal, EditPlayerModal } from '@/pages/tournament/player-modals';
 import { BracketConnectors, TournamentBracket, type BracketConnection, type TournamentBracketMatch } from '@/pages/tournament/tournament-bracket';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { ChevronDownIcon, Medal, Trash2, Trophy } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { ChevronDownIcon, GripVertical, Medal, Trash2, Trophy } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 interface TournamentPlayer {
@@ -112,7 +112,58 @@ function previewSlotLabel(slot: PreviewSlot) {
     return slot.type === 'player' ? (slot.name ?? `Player #${slot.id}`) : (slot.label ?? 'TBD');
 }
 
-function PreviewBracketColumns({ rounds }: { rounds: Array<{ round: number; matches: PreviewMatch[] }> }) {
+function PreviewPlayerSlot({ slot, disabled, onSwapSeeds }: { slot?: PreviewSlot; disabled: boolean; onSwapSeeds: (firstId: number, secondId: number) => void }) {
+    const [isDragTarget, setIsDragTarget] = useState(false);
+    const playerId = slot?.type === 'player' && typeof slot.id === 'number' ? slot.id : null;
+    const isPlayer = playerId !== null;
+
+    return (
+        <p
+            draggable={isPlayer && !disabled}
+            onDragStart={(event) => {
+                if (!isPlayer) return;
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', String(playerId));
+            }}
+            onDragOver={(event) => {
+                if (!isPlayer || disabled) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                setIsDragTarget(true);
+            }}
+            onDragLeave={() => setIsDragTarget(false)}
+            onDrop={(event) => {
+                event.preventDefault();
+                setIsDragTarget(false);
+                if (!isPlayer || disabled) return;
+
+                const draggedPlayerId = Number(event.dataTransfer.getData('text/plain'));
+                if (playerId !== null && Number.isInteger(draggedPlayerId) && draggedPlayerId !== playerId) {
+                    onSwapSeeds(draggedPlayerId, playerId);
+                }
+            }}
+            onDragEnd={() => setIsDragTarget(false)}
+            title={isPlayer ? 'Drag onto another player to swap seeds' : undefined}
+            className={`flex items-center gap-2 rounded-lg border px-2 py-1 transition ${
+                isDragTarget ? 'border-lime-300 bg-lime-300/20' : 'border-white/10 bg-white/5'
+            } ${isPlayer && !disabled ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        >
+            {isPlayer && <GripVertical className="size-3.5 shrink-0 text-white/35" />}
+            <span className="truncate">{slot ? previewSlotLabel(slot) : 'TBD'}</span>
+            {isPlayer && slot?.seed != null && <span className="ml-auto text-xs text-white/40">#{slot.seed}</span>}
+        </p>
+    );
+}
+
+function PreviewBracketColumns({
+    rounds,
+    swappingSeeds,
+    onSwapSeeds,
+}: {
+    rounds: Array<{ round: number; matches: PreviewMatch[] }>;
+    swappingSeeds: boolean;
+    onSwapSeeds: (firstId: number, secondId: number) => void;
+}) {
     const canvasRef = useRef<HTMLDivElement>(null);
     const [canvas, setCanvas] = useState<HTMLDivElement | null>(null);
 
@@ -144,18 +195,17 @@ function PreviewBracketColumns({ rounds }: { rounds: Array<{ round: number; matc
                                     <p className="text-xs text-white/40">Match {match.suggested_play_order}</p>
                                     {match.participants ? (
                                         match.participants.map((slot, index) => (
-                                            <p key={slot.id ?? index} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
-                                                {previewSlotLabel(slot)}
-                                            </p>
+                                            <PreviewPlayerSlot
+                                                key={slot.id ?? index}
+                                                slot={slot}
+                                                disabled={swappingSeeds}
+                                                onSwapSeeds={onSwapSeeds}
+                                            />
                                         ))
                                     ) : (
                                         <>
-                                            <p className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
-                                                {match.player1 ? previewSlotLabel(match.player1) : 'TBD'}
-                                            </p>
-                                            <p className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
-                                                {match.player2 ? previewSlotLabel(match.player2) : 'TBD'}
-                                            </p>
+                                            <PreviewPlayerSlot slot={match.player1} disabled={swappingSeeds} onSwapSeeds={onSwapSeeds} />
+                                            <PreviewPlayerSlot slot={match.player2} disabled={swappingSeeds} onSwapSeeds={onSwapSeeds} />
                                         </>
                                     )}
                                 </div>
@@ -195,6 +245,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
     const [playersOpen, setPlayersOpen] = useState(false);
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
+    const [swappingSeeds, setSwappingSeeds] = useState(false);
     const { delete: destroy, processing: deleteProcessing } = useForm({});
     const bulkDeleteForm = useForm<{ player_ids: number[] }>({ player_ids: [] });
     const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
@@ -225,7 +276,21 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
           ? 'Only round 1 can be predicted. Later heats depend on finishing positions.'
           : isDoubleElimination
             ? 'A bracket reset final is added only if the lower bracket finalist wins the first final.'
-            : 'Based on the currently checked-in players, ordered by registration ID.';
+            : 'Based on the currently checked-in players in seed order.';
+
+    const swapPlayerSeeds = (firstPlayerId: number, secondPlayerId: number) => {
+        if (swappingSeeds) return;
+
+        router.put(
+            route('tournament.player.seeds.swap', tournament.open_id),
+            { first_player_id: firstPlayerId, second_player_id: secondPlayerId },
+            {
+                preserveScroll: true,
+                onStart: () => setSwappingSeeds(true),
+                onFinish: () => setSwappingSeeds(false),
+            },
+        );
+    };
 
     const submitDeletePlayer = () => {
         if (!deletingPlayer) {
@@ -578,17 +643,18 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                             <CardHeader>
                                 <CardTitle>Bracket preview</CardTitle>
                                 <CardDescription>{previewNote}</CardDescription>
+                                <p className="text-xs text-white/45">Drag a player onto another player to swap their seeds.</p>
                             </CardHeader>
                             <CardContent>
                                 {previewRounds.length === 0 ? (
                                     <p className="text-muted-foreground text-sm">Check in at least two players to preview the bracket.</p>
                                 ) : (
                                     <div className="space-y-5 text-white">
-                                        <PreviewBracketColumns rounds={upperPreviewRounds} />
+                                        <PreviewBracketColumns rounds={upperPreviewRounds} swappingSeeds={swappingSeeds} onSwapSeeds={swapPlayerSeeds} />
                                         {lowerPreviewRounds.length > 0 && (
                                             <div className="border-t pt-4">
                                                 <p className="mb-2 text-sm font-semibold">Lower bracket</p>
-                                                <PreviewBracketColumns rounds={lowerPreviewRounds} />
+                                                <PreviewBracketColumns rounds={lowerPreviewRounds} swappingSeeds={swappingSeeds} onSwapSeeds={swapPlayerSeeds} />
                                             </div>
                                         )}
                                     </div>

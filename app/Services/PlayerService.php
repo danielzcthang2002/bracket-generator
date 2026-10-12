@@ -103,6 +103,42 @@ class PlayerService
         });
     }
 
+    public function swapSeeds(int $firstPlayerId, int $secondPlayerId): void
+    {
+        DB::transaction(function () use ($firstPlayerId, $secondPlayerId): void {
+            $players = Player::query()
+                ->whereKey([$firstPlayerId, $secondPlayerId])
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $firstPlayer = $players->get($firstPlayerId);
+            $secondPlayer = $players->get($secondPlayerId);
+
+            if (! $firstPlayer || ! $secondPlayer) {
+                throw new \InvalidArgumentException('One or more players do not exist.');
+            }
+
+            if ($firstPlayer->tournament_id !== $secondPlayer->tournament_id) {
+                throw new \InvalidArgumentException('Players must belong to the same tournament.');
+            }
+
+            $tournament = Tournament::query()->findOrFail($firstPlayer->tournament_id);
+            $this->tournamentStartedBlock($tournament);
+
+            if ($firstPlayer->is($secondPlayer)) {
+                return;
+            }
+
+            $firstSeed = $firstPlayer->seed;
+            $firstPlayer->seed = $secondPlayer->seed;
+            $secondPlayer->seed = $firstSeed;
+
+            $firstPlayer->save();
+            $secondPlayer->save();
+        });
+    }
+
     // ===== Helper Methods =====
     /**This method is used to assign a seed to a new player based on the latest seed in the tournament.*/
     private function assignSeed(Player $player, int $tournamentId): void

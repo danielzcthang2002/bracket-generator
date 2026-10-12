@@ -33,7 +33,7 @@ class RoundRobinService extends ModeService implements HasMode
 {
     public function previewBracket(Tournament $tournament): array
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         if ($players->count() < 2) {
             return [];
         }
@@ -70,9 +70,7 @@ class RoundRobinService extends ModeService implements HasMode
 
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()
-            ->checkedIn()
-            ->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         $numPlayers = $players->count();
 
         if ($numPlayers < 2) {
@@ -207,7 +205,7 @@ class RoundRobinService extends ModeService implements HasMode
      */
     private function computeStandings(Tournament $tournament, bool $hasBye): Collection
     {
-        $players = $tournament->players()->checkedIn()->get();
+        $players = $this->getPlayers($tournament);
 
         // Plain array, not a Collection: Collection's ArrayAccess doesn't
         // return offsetGet() by reference, so `$stats[$id]['wins']++` below

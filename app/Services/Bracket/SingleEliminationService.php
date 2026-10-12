@@ -15,7 +15,7 @@ class SingleEliminationService extends ModeService implements HasMode
 {
     public function initialize(Tournament $tournament)
     {
-        $players = $tournament->players()->checkedIn()->orderBy('id', 'asc')->get();
+        $players = $this->getPlayers($tournament);
         $numPlayers = $players->count();
         $numRounds = $this->calculateTotalRound($numPlayers);
         $rounds = [];
@@ -230,13 +230,7 @@ class SingleEliminationService extends ModeService implements HasMode
      */
     public function previewBracket(Tournament $tournament): array
     {
-        $players = $tournament->players()
-            ->checkedIn()
-            // NOTE: this mirrors initialize()'s ordering. If you have a
-            // dedicated `seed` column, order by that instead of `id` so
-            // re-seeding actually changes the preview.
-            ->orderBy('id', 'asc')
-            ->get();
+        $players = $this->getPlayers($tournament);
 
         $numPlayers = $players->count();
 

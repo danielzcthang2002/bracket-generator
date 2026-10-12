@@ -6,12 +6,29 @@ namespace App\Services\Bracket;
 
 use App\Models\Tournament;
 use App\Models\Player;
+use Illuminate\Database\Eloquent\Collection;
 
 abstract class ModeService
 {
     abstract public function initialize(Tournament $tournament);
 
     abstract public function previewBracket(Tournament $tournament): array;
+
+    /**
+     * Retrieve checked-in players in seed order.
+     *
+     * @param  array<int>|null  $playerIds
+     * @return Collection<int, Player>
+     */
+    protected function getPlayers(Tournament $tournament, ?array $playerIds = null): Collection
+    {
+        return $tournament->players()
+            ->checkedIn()
+            ->when($playerIds !== null, fn ($query) => $query->whereIn('id', $playerIds))
+            ->orderBy('seed')
+            ->orderBy('id')
+            ->get();
+    }
 
     protected function previewPlayer(Player $player): array
     {
