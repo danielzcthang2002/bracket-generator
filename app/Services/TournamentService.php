@@ -187,33 +187,44 @@ class TournamentService
 
     public function startTournament(string $openId): Tournament
     {
-        DB::beginTransaction();
-        try {
+        return DB::transaction(function () use ($openId): Tournament {
             $tournament = Tournament::query()
-                ->where('open_id', $openId)->firstOrFail();
+                ->where('open_id', $openId)->lockForUpdate()->firstOrFail();
+            $mode = $this->resolver->resolve($tournament->mode_type->value);
+            if (!$mode->canStart($tournament)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'players' => match ($tournament->mode_type) {
+                        TournamentModeEnum::SINGLE_ELIMINATION => 'Single elimination requires at least 2 checked-in players.',
+                        TournamentModeEnum::ROUND_ROBIN => 'Round robin requires at least 2 checked-in players.',
+                        TournamentModeEnum::SWISS => 'Swiss requires at least 2 checked-in players.',
+                        TournamentModeEnum::FREE_FOR_ALL => 'Free-for-all requires at least 2 checked-in players.',
+                        TournamentModeEnum::DOUBLE_ELIMINATION => $tournament->split_participant
+                            ? 'Split-participant double elimination requires at least 3 checked-in players.'
+                            : 'Double elimination requires at least 2 checked-in players.',
+                        default => 'The checked-in player count does not meet this mode\'s start requirements.',
+                    },
+                ]);
+            }
             $tournament->status = TournamentStatus::STARTED;
-            $mode = $tournament->mode_type->value;
             $tournament->save();
-            $this->resolver->resolve($mode)->initialize($tournament);
-            DB::commit();
+            $mode->initialize($tournament);
 
             return $tournament;
-        } catch (Exception $th) {
-            DB::rollBack();
-            throw new Exception('Failed to start tournament: '.$th->getMessage());
-        }
+        });
     }
 
     public function endTournament(string $openId): Tournament
     {
         $tournament = Tournament::query()
             ->where('open_id', $openId)->firstOrFail();
-        $allMatchesCompleted = $tournament
-            ->matches()
-            ->where('state', TournamentMatchStateEnum::COMPLETE)
+        $hasMatches = $tournament->matches()->exists();
+        $hasIncompleteMatches = $tournament->matches()
+            ->where('state', '!=', TournamentMatchStateEnum::COMPLETE)
             ->exists();
-        if (! $allMatchesCompleted) {
-            throw new Exception('All matches need to be completed to end a tournament.', 1);
+        if (! $hasMatches || $hasIncompleteMatches) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'tournament' => 'All matches need to be completed before ending the tournament.',
+            ]);
         }
 
         DB::beginTransaction();

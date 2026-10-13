@@ -335,6 +335,8 @@ function BracketColumns({
                                                         </div>
                                                     ))}
                                                 </div>
+                                            ) : isFreeForAll ? (
+                                                <p className="text-muted-foreground text-xs">Waiting for qualifiers from the previous round.</p>
                                             ) : (
                                                 <div className="space-y-1.5">
                                                     <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs">

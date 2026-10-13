@@ -9,10 +9,18 @@ use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\Player;
 use App\Services\Bracket\Contracts\HasMode;
+use App\Services\Bracket\Trait\ResetsDependentMatches;
 use Illuminate\Support\Collection;
 
 class SingleEliminationService extends ModeService implements HasMode
 {
+    use ResetsDependentMatches;
+
+    public function canStart(Tournament $tournament): bool
+    {
+        return $tournament->players()->checkedIn()->count() >= 2;
+    }
+
     public function initialize(Tournament $tournament)
     {
         $players = $this->getPlayers($tournament);
@@ -105,6 +113,10 @@ class SingleEliminationService extends ModeService implements HasMode
 
     private function updateMatchesState(Tournament $tournament): void
     {
+        $tournament->matches()
+            ->where(fn ($query) => $query->whereNull('player1_id')->orWhereNull('player2_id'))
+            ->update(['state' => TournamentMatchStateEnum::PENDING]);
+
         $tournament->matches()
             ->whereNotNull('player1_id')
             ->whereNotNull('player2_id')

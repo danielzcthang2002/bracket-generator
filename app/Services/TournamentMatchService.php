@@ -59,6 +59,11 @@ class TournamentMatchService
      */
     public function updateMatchScores(int $matchId, string $scoresCsv, string|int|null $winnerId): TournamentMatch
     {
+        return DB::transaction(fn () => $this->saveMatchScores($matchId, $scoresCsv, $winnerId));
+    }
+
+    private function saveMatchScores(int $matchId, string $scoresCsv, string|int|null $winnerId): TournamentMatch
+    {
         $match = TournamentMatch::findOrFail($matchId);
         $this->ensureScoresEditable($match);
         $player1Id = $match->player1_id;
@@ -84,6 +89,10 @@ class TournamentMatchService
         $scoreUpsertData = [];
         $totalPlayer1Score = 0;
         $totalPlayer2Score = 0;
+        $swiss = $match->tournament->mode_type === \App\Enums\TournamentModeEnum::SWISS
+            ? app(SwissService::class) : null;
+        $wasDecided = $match->winner_id !== null || $match->is_tie;
+        $previousPairingPoints = $swiss?->pairingPoints($match->tournament);
 
         $match->matchScores()->delete();
         foreach ($sets as $key => $value) {
@@ -136,9 +145,31 @@ class TournamentMatchService
             $match->state = TournamentMatchStateEnum::COMPLETE;
         }
 
+        $elimination = in_array($match->tournament->mode_type, [
+            \App\Enums\TournamentModeEnum::SINGLE_ELIMINATION,
+            \App\Enums\TournamentModeEnum::DOUBLE_ELIMINATION,
+        ], true);
+        if ($elimination && $match->isDirty('winner_id') && $match->getOriginal('winner_id') !== null) {
+            $this->resolver->resolve($match->tournament->mode_type->value)->resetDependentMatches($match);
+            $match->completed_at = null;
+        }
+        if (($elimination || $swiss !== null) && $winnerId === null && !$isTie) {
+            $match->state = TournamentMatchStateEnum::OPEN;
+            $match->completed_at = null;
+        }
+
+        $outcomeChanged = $match->isDirty(['winner_id', 'is_tie']);
         $match->save();
 
-        if ($winnerId !== null || $isTie) {
+        if ($swiss !== null && $wasDecided) {
+            if ($outcomeChanged || $previousPairingPoints !== $swiss->pairingPoints($match->tournament)) {
+                $match->tournament->matches()->where('round', '>', $match->round)->delete();
+            }
+            // A correction stops at this round; advancing generates fresh pairings.
+            $swiss->refreshResults($match->tournament);
+        } elseif ($swiss !== null && $winnerId === null && !$isTie) {
+            $swiss->refreshResults($match->tournament);
+        } elseif ($winnerId !== null || $isTie || $elimination) {
             $this->generateMatches($match->tournament_id);
         }
 
@@ -154,6 +185,11 @@ class TournamentMatchService
      */
     public function updateFfaMatchScores(int $matchId, array $participantsData): TournamentMatch
     {
+        return DB::transaction(fn () => $this->saveFfaMatchScores($matchId, $participantsData));
+    }
+
+    private function saveFfaMatchScores(int $matchId, array $participantsData): TournamentMatch
+    {
         $match = TournamentMatch::query()->with('participants')->findOrFail($matchId);
         $this->ensureScoresEditable($match);
         $participants = $match->participants;
@@ -168,7 +204,9 @@ class TournamentMatchService
             ->map(fn($participantId) => (int) $participantId)
             ->values();
 
-        if ($submittedParticipantIds->count() !== $participants->count() || $submittedParticipantIds->diff($participantsById->keys())->isNotEmpty()) {
+        if ($submittedParticipantIds->count() !== $participants->count()
+            || $submittedParticipantIds->unique()->count() !== $participants->count()
+            || $submittedParticipantIds->diff($participantsById->keys())->isNotEmpty()) {
             throw new \InvalidArgumentException('Submitted participants must match the match roster exactly.');
         }
 

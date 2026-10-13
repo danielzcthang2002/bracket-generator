@@ -53,6 +53,24 @@ use Illuminate\Support\Collection;
  */
 class SwissService extends ModeService implements HasMode
 {
+    public function canStart(Tournament $tournament): bool
+    {
+        return $tournament->players()->checkedIn()->count() >= 2;
+    }
+
+    public function pairingPoints(Tournament $tournament): array
+    {
+        return $this->computeStandings($tournament, $this->getPlayers($tournament))
+            ->pluck('points', 'player_id')->all();
+    }
+
+    public function refreshResults(Tournament $tournament): void
+    {
+        $totalRounds = (int) ($tournament->swiss_rounds
+            ?? $this->defaultSwissRoundCount($this->getPlayers($tournament)->count()));
+        $this->updateMatchesState($tournament, $totalRounds);
+    }
+
     public function previewBracket(Tournament $tournament): array
     {
         $players = $this->getPlayers($tournament);

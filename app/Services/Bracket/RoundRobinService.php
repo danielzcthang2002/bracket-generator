@@ -31,6 +31,11 @@ use Illuminate\Support\Collection;
  */
 class RoundRobinService extends ModeService implements HasMode
 {
+    public function canStart(Tournament $tournament): bool
+    {
+        return $tournament->players()->checkedIn()->count() >= 2;
+    }
+
     public function previewBracket(Tournament $tournament): array
     {
         $players = $this->getPlayers($tournament);

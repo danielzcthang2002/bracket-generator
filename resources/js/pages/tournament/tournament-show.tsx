@@ -1,4 +1,5 @@
 import InputError from '@/components/input-error';
+import { ErrorToast } from '@/components/error-toast';
 import { TournamentStatusBadge } from '@/components/tournament-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -248,6 +249,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     const [swappingSeeds, setSwappingSeeds] = useState(false);
     const { delete: destroy, processing: deleteProcessing } = useForm({});
     const bulkDeleteForm = useForm<{ player_ids: number[] }>({ player_ids: [] });
+    const [tournamentActionError, setTournamentActionError] = useState<string | null>(null);
     const { post: postStartTournament, processing: startTournamentProcessing } = useForm();
     const { post: postEndTournament, processing: endTournamentProcessing } = useForm();
     const isDoubleElimination = tournament.mode_type === 'double_elimination';
@@ -337,13 +339,19 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
         }
         postStartTournament(route('tournament.start', [tournament.open_id]), {
             preserveScroll: true,
+            onStart: () => setTournamentActionError(null),
+            onError: (errors) => setTournamentActionError(Object.values(errors)[0] ?? 'Unable to start the tournament.'),
         });
     };
 
     const endTournament = () => {
         if (endTournamentProcessing) return;
 
-        postEndTournament(route('tournament.end', [tournament.open_id]));
+        postEndTournament(route('tournament.end', [tournament.open_id]), {
+            preserveScroll: true,
+            onStart: () => setTournamentActionError(null),
+            onError: (errors) => setTournamentActionError(Object.values(errors)[0] ?? 'Unable to end the tournament.'),
+        });
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -360,6 +368,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`${tournament.name} | Tournament`} />
+            <ErrorToast message={tournamentActionError} onDismiss={() => setTournamentActionError(null)} />
 
             <div className="flex h-full flex-1 flex-col gap-5 bg-[#f4f6ed] p-4 md:p-6 dark:bg-[#0b0e09]">
                 <div className="relative flex flex-col gap-5 overflow-hidden rounded-3xl bg-[#172012] p-6 text-white shadow-xl shadow-black/10 sm:flex-row sm:items-center sm:justify-between sm:p-8">
@@ -372,12 +381,12 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                     <div className="relative flex flex-wrap items-center gap-2">
                         {/* <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} /> */}
                         {tournament.status == 'pending' && (
-                            <Button onClick={startTournament} className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">
+                            <Button onClick={startTournament} disabled={startTournamentProcessing} className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">
                                 Start tournament
                             </Button>
                         )}
                         {tournament.status == 'started' && (
-                            <Button variant="destructive" onClick={endTournament} className="rounded-full">
+                            <Button variant="destructive" onClick={endTournament} disabled={endTournamentProcessing} className="rounded-full">
                                 End tournament
                             </Button>
                         )}
@@ -441,7 +450,7 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                                         </Button>
                                     </div>
                                     <p className="text-muted-foreground text-xs">
-                                        The next round is generated when the current round is complete. Existing matches are preserved.
+                                        New results advance completed rounds automatically. After correcting an earlier result, save rounds to generate the next round from the updated standings.
                                     </p>
                                     <InputError message={swissRoundsForm.errors.swiss_rounds} />
                                 </form>

@@ -24,13 +24,10 @@ use Illuminate\Support\Collection;
  * Like SwissService, a free-for-all bracket can't be generated all at once:
  * round N+1's heats depend on the *results* of round N (only the top
  * finishers of each heat advance). So initialize() is designed to be called
- * repeatedly over the life of the event (e.g. once after every round is
- * fully reported) and will only ever:
- *   - create round 1 the first time it's called (seed-ordered heats), and
- *   - append the next round once the round before it is fully decided and
- *     more than one player survived it.
- * It never rewrites a round that already has matches in it, since those
- * heats may already have been played.
+ * repeatedly over the life of the event. It reconciles reachable rounds
+ * against their qualifying order, preserving unchanged heats. Changed
+ * rosters or slots clear that heat and its dependent results. Further
+ * rosters wait until the preceding round is fully reported again.
  *
  * Heats:
  *   - Players are split into heats of `ffa_heat_size` (tournament attribute,
@@ -71,6 +68,11 @@ use Illuminate\Support\Collection;
  */
 class FreeForAllService extends ModeService implements HasMode
 {
+    public function canStart(Tournament $tournament): bool
+    {
+        return $tournament->players()->checkedIn()->count() >= 2;
+    }
+
     private const DEFAULT_HEAT_SIZE = 4;
     private const DEFAULT_ADVANCE_RATIO = 0.5;
 
@@ -109,34 +111,24 @@ class FreeForAllService extends ModeService implements HasMode
 
         $heatSize = $this->heatSize($tournament);
         $advanceCount = $this->advanceCount($tournament, $heatSize);
-        $lastRound = (int) $tournament->matches()->max('round');
         $tournamentComplete = false;
+        $ordered = $players;
+        $round = 1;
 
-        if ($lastRound === 0) {
-            // Nothing generated yet: seed round 1 straight from seeding.
-            $this->generateRound($tournament, 1, $players, $heatSize);
-        } elseif ($this->roundIsComplete($tournament, $lastRound)) {
-            $heatsInLastRound = $tournament->matches()->where('round', $lastRound)->count();
-
-            if ($heatsInLastRound === 1) {
-                // That single heat *was* the final - its ranks are the
-                // final standings for everyone in it.
-                $tournamentComplete = true;
-            } else {
-                $advancers = $this->computeAdvancers($tournament, $lastRound, $advanceCount);
-
-                if ($advancers->count() <= 1) {
-                    // Zero or one player survived - nothing left to play.
-                    $tournamentComplete = true;
-                } else {
-                    $ordered = $this->orderByPerformance($tournament, $advancers, $lastRound);
-                    $this->generateRound($tournament, $lastRound + 1, $ordered, $heatSize);
-                }
+        // Reconcile each reachable round against the corrected qualifying order.
+        while (true) {
+            $this->generateRound($tournament, $round, $ordered, $heatSize);
+            if (!$this->roundIsComplete($tournament, $round)) {
+                break;
             }
+            if ($ordered->count() <= $heatSize) {
+                $tournamentComplete = true;
+                break;
+            }
+            $advancers = $this->computeAdvancers($tournament, $round, $advanceCount);
+            $ordered = $this->orderByPerformance($tournament, $advancers, $round);
+            $round++;
         }
-        // else: the most recent round is still in progress - nothing to
-        // do this call.
-
         $this->updateMatchesState($tournament);
 
         if ($tournamentComplete) {
@@ -174,7 +166,7 @@ class FreeForAllService extends ModeService implements HasMode
      */
     private function generateRound(Tournament $tournament, int $round, Collection $orderedPlayers, int $heatSize): void
     {
-        $playOrder = ((int) $tournament->matches()->max('suggested_play_order')) + 1;
+        $playOrder = ((int) $tournament->matches()->where('round', '<', $round)->max('suggested_play_order')) + 1;
         $heats = $this->buildHeats($orderedPlayers, $heatSize);
 
         foreach ($heats as $heatPlayers) {
@@ -188,6 +180,13 @@ class FreeForAllService extends ModeService implements HasMode
                 'player1_prereq_match_id' => null,
                 'player2_prereq_match_id' => null,
             ]);
+
+            $roster = $match->participants()->orderBy('position')->pluck('player_id')->all();
+            $expectedRoster = array_map(fn ($player) => $player->id, $heatPlayers);
+            if ($roster !== $expectedRoster) {
+                $this->invalidateFollowingHeats($tournament, $match);
+                $this->clearHeat($match);
+            }
 
             foreach ($heatPlayers as $index => $player) {
                 TournamentMatchParticipant::updateOrCreate([
@@ -262,6 +261,39 @@ class FreeForAllService extends ModeService implements HasMode
             ->whereIn('tournament_match_id', $matchIds, 'and', false)
             ->whereNull('rank', 'and', false)
             ->exists();
+    }
+
+    private function clearHeat(TournamentMatch $match): void
+    {
+        $match->participants()->delete();
+        $match->matchScores()->delete();
+        $match->update([
+            'state' => TournamentMatchStateEnum::PENDING,
+            'completed_at' => null,
+            'winner_id' => null,
+            'loser_id' => null,
+            'is_tie' => false,
+            'player1_score' => null,
+            'player2_score' => null,
+        ]);
+    }
+
+    private function invalidateFollowingHeats(Tournament $tournament, TournamentMatch $match): void
+    {
+        $participants = $match->participants()->orderBy('rank')->get();
+        $count = $participants->count();
+        $take = $count <= 1 ? $count : min($this->advanceCount($tournament, $this->heatSize($tournament)), $count - 1);
+        $qualifiers = $participants->whereNotNull('rank')->take($take)->pluck('player_id');
+        if ($qualifiers->isEmpty()) {
+            return;
+        }
+
+        $dependents = $tournament->matches()->where('round', $match->round + 1)
+            ->whereHas('participants', fn ($query) => $query->whereIn('player_id', $qualifiers))->get();
+        foreach ($dependents as $dependent) {
+            $this->invalidateFollowingHeats($tournament, $dependent);
+            $this->clearHeat($dependent);
+        }
     }
 
     /**

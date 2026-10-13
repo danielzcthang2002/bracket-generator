@@ -8,10 +8,18 @@ use App\Enums\TournamentMatchStateEnum;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Services\Bracket\Contracts\HasMode;
+use App\Services\Bracket\Trait\ResetsDependentMatches;
 use App\Services\Bracket\Trait\SplitParticipant;
 
 class DoubleEliminationService extends ModeService implements HasMode
 {
+    use ResetsDependentMatches;
+
+    public function canStart(Tournament $tournament): bool
+    {
+        return $tournament->players()->checkedIn()->count() >= ($tournament->split_participant ? 3 : 2);
+    }
+
     use SplitParticipant;
 
     /**
@@ -183,6 +191,8 @@ class DoubleEliminationService extends ModeService implements HasMode
 
     public function initialize(Tournament $tournament)
     {
+        $this->matchWinner = [];
+        $this->matchLoser = [];
         $players = $this->getPlayers($tournament);
         $numPlayers = $players->count();
         $splitParticipant = (bool) ($tournament->split_participant ?? false);
@@ -624,6 +634,10 @@ class DoubleEliminationService extends ModeService implements HasMode
     private function updateMatchesState(Tournament $tournament, int $totalWbRounds, int $totalLbRounds): void
     {
         $tournament->matches()
+            ->where(fn ($query) => $query->whereNull('player1_id')->orWhereNull('player2_id'))
+            ->update(['state' => TournamentMatchStateEnum::PENDING]);
+
+        $tournament->matches()
             ->whereNotNull('player1_id')
             ->whereNotNull('player2_id')
             ->update(['state' => TournamentMatchStateEnum::OPEN]);
@@ -637,13 +651,14 @@ class DoubleEliminationService extends ModeService implements HasMode
             ->orderByDesc('round')
             ->get();
 
-        $decisiveFinal = $grandFinals->first(fn($m) => $m->winner_id !== null);
+        // An unfinished reset final means the champion is still undecided.
+        $decisiveFinal = $grandFinals->first();
         $allOthersDone = !$tournament->matches()
             ->where('round', '<=', $totalWbRounds)
             ->whereNull('winner_id')
             ->exists();
 
-        if ($allOthersDone && $decisiveFinal) {
+        if ($allOthersDone && $decisiveFinal !== null && $decisiveFinal->winner_id !== null) {
             $this->assignFinalRanks($tournament, $totalWbRounds, $totalLbRounds);
         } else {
             $tournament->players()->update(['final_rank' => null]);

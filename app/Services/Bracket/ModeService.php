@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Collection;
 
 abstract class ModeService
 {
+    abstract public function canStart(Tournament $tournament): bool;
+
     abstract public function initialize(Tournament $tournament);
 
     abstract public function previewBracket(Tournament $tournament): array;
