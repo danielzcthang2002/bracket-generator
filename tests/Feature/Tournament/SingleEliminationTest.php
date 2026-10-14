@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Services\DtTournamentMatchService;
 
 dataset('single elimination cases', [
     '2 players' => [
@@ -141,22 +141,22 @@ it('generates a single elimination bracket', function (
     array $expectedRounds,
     int $expectedRoundOnePlayerCount,
 ) {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Single Elimination Test ' . $playerCount,
-        'open_id' => Tournament::generateOpenId(),
-        'mode_type' => TournamentModeEnum::SINGLE_ELIMINATION,
-        'status' => TournamentStatus::OPEN,
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::SINGLE_ELIMINATION,
+        'status' => DtTournamentStatus::OPEN,
     ]);
 
-    collect(range(1, $playerCount))->map(function (int $index) use ($tournament): Player {
-        return Player::create([
+    collect(range(1, $playerCount))->map(function (int $index) use ($tournament): DtPlayer {
+        return DtPlayer::create([
             'name' => 'Player ' . $index,
             'tournament_id' => $tournament->id,
             'checked_in' => true,
         ]);
     });
 
-    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
+    $matches = app(DtTournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($expectedTotalMatchCount);
 

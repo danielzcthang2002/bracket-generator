@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\Bracket\Contracts\ModeResolver;
+use App\Bracket\Contracts\DtModeResolver;
 
 it('requires two checked-in players for FFA regardless of heat size', function (int $count, int $heatSize, bool $api) {
     $this->actingAs(User::factory()->create());
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'FFA eligibility', 'open_id' => 'FFASTART',
         'mode_type' => 'free_for_all', 'status' => 'pending',
         'ffa_heat_size' => $heatSize, 'ffa_advance_count' => max(1, intdiv($heatSize, 2)),
@@ -15,7 +15,7 @@ it('requires two checked-in players for FFA regardless of heat size', function (
         $tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => $index <= $count]);
     }
     $eligible = $count >= 2;
-    expect(app(ModeResolver::class)->resolve('free_for_all')->canStart($tournament))->toBe($eligible)
+    expect(app(DtModeResolver::class)->resolve('free_for_all')->canStart($tournament))->toBe($eligible)
         ->and($tournament->fresh()->status->value)->toBe('pending')
         ->and($tournament->matches()->count())->toBe(0);
 

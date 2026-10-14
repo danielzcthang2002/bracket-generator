@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\TournamentService;
+use App\Bracket\Services\DtTournamentService;
 
 beforeEach(function () {
     $this->actingAs(User::factory()->create());
-    $this->tournament = Tournament::create([
+    $this->tournament = DtTournament::create([
         'name' => 'Swiss Cup', 'open_id' => 'SWISSROUNDS', 'mode_type' => 'swiss',
         'status' => 'pending', 'swiss_rounds' => 1,
         'points_per_match_win' => 1, 'points_per_match_tie' => 0.5,
@@ -24,7 +24,7 @@ it('saves pending round counts without persisting the preview', function () {
 });
 
 it('generates the next round on an update and preserves completed matches', function (string $endpoint) {
-    app(TournamentService::class)->startTournament('SWISSROUNDS');
+    app(DtTournamentService::class)->startTournament('SWISSROUNDS');
     $firstRound = $this->tournament->matches()->get();
     foreach ($firstRound as $match) {
         $match->update(['winner_id' => $match->player1_id, 'state' => 'complete']);
@@ -55,11 +55,11 @@ it('rejects invalid rounds and changes to ended or non-Swiss tournaments', funct
 });
 
 it('persists round counts through the API update service and generates matches', function () {
-    app(TournamentService::class)->startTournament('SWISSROUNDS');
+    app(DtTournamentService::class)->startTournament('SWISSROUNDS');
     foreach ($this->tournament->matches()->get() as $match) {
         $match->update(['winner_id' => $match->player1_id, 'state' => 'complete']);
     }
-    app(TournamentService::class)->updateTournament('SWISSROUNDS', [
+    app(DtTournamentService::class)->updateTournament('SWISSROUNDS', [
         'mode_type' => 'swiss', 'swiss_rounds' => 3,
         'points_per_match_win' => 1, 'points_per_match_tie' => 0.5,
         'points_per_set_win' => 0, 'points_per_set_tie' => 0, 'points_per_bye' => 1,

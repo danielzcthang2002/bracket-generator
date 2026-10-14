@@ -1,37 +1,37 @@
 <?php
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\Bracket\Contracts\ModeResolver;
+use App\Bracket\Contracts\DtModeResolver;
 use Inertia\Testing\AssertableInertia as Assert;
 
-it('previews deterministic matches without writing data', function (TournamentModeEnum $mode, int $count, bool $split) {
-    $tournament = Tournament::create([
+it('previews deterministic matches without writing data', function (DtTournamentModeEnum $mode, int $count, bool $split) {
+    $tournament = DtTournament::create([
         'name' => 'Preview test',
-        'open_id' => Tournament::generateOpenId(),
+        'open_id' => DtTournament::generateOpenId(),
         'mode_type' => $mode,
-        'status' => TournamentStatus::PENDING,
+        'status' => DtTournamentStatus::PENDING,
         'split_participant' => $split,
     ]);
     for ($i = 1; $i <= $count; $i++) {
-        Player::create([
+        DtPlayer::create([
             'name' => "Player {$i}",
             'tournament_id' => $tournament->id,
             'checked_in' => true,
         ]);
     }
 
-    $service = app(ModeResolver::class)->resolve($mode->value);
+    $service = app(DtModeResolver::class)->resolve($mode->value);
     $preview = $service->previewBracket($tournament);
     expect($preview)->not->toBeEmpty();
     expect($tournament->matches()->count())->toBe(0);
 
     $matches = $service->initialize($tournament);
     $previewRows = collect($preview)->flatten(1)->keyBy('suggested_play_order');
-    if (in_array($mode, [TournamentModeEnum::SWISS, TournamentModeEnum::FREE_FOR_ALL], true)) {
+    if (in_array($mode, [DtTournamentModeEnum::SWISS, DtTournamentModeEnum::FREE_FOR_ALL], true)) {
         $matches = $matches->where('round', 1);
     }
 
@@ -39,7 +39,7 @@ it('previews deterministic matches without writing data', function (TournamentMo
         $row = $previewRows->get($match->suggested_play_order);
         expect($row)->not->toBeNull();
         expect($row['round'])->toBe($match->round);
-        if ($mode === TournamentModeEnum::FREE_FOR_ALL) {
+        if ($mode === DtTournamentModeEnum::FREE_FOR_ALL) {
             expect(array_column($row['participants'], 'id'))
                 ->toBe($match->participants->sortBy('position')->pluck('player_id')->all());
             continue;
@@ -57,35 +57,35 @@ it('previews deterministic matches without writing data', function (TournamentMo
         }
     }
 })->with([
-    [TournamentModeEnum::SINGLE_ELIMINATION, 5, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 2, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 3, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 4, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 5, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 6, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 6, true],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 7, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 7, true],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 8, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 9, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 9, true],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 10, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 13, false],
-    [TournamentModeEnum::DOUBLE_ELIMINATION, 23, false],
-    [TournamentModeEnum::ROUND_ROBIN, 5, false],
-    [TournamentModeEnum::SWISS, 5, false],
-    [TournamentModeEnum::FREE_FOR_ALL, 7, false],
+    [DtTournamentModeEnum::SINGLE_ELIMINATION, 5, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 2, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 3, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 4, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 5, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 6, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 6, true],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 7, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 7, true],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 8, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 9, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 9, true],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 10, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 13, false],
+    [DtTournamentModeEnum::DOUBLE_ELIMINATION, 23, false],
+    [DtTournamentModeEnum::ROUND_ROBIN, 5, false],
+    [DtTournamentModeEnum::SWISS, 5, false],
+    [DtTournamentModeEnum::FREE_FOR_ALL, 7, false],
 ]);
 
 it('shows a preview on the tournament page before play starts', function () {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Preview page test',
-        'open_id' => Tournament::generateOpenId(),
-        'mode_type' => TournamentModeEnum::ROUND_ROBIN,
-        'status' => TournamentStatus::PENDING,
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::ROUND_ROBIN,
+        'status' => DtTournamentStatus::PENDING,
     ]);
     foreach (['Alice', 'Bob'] as $name) {
-        Player::create([
+        DtPlayer::create([
             'name' => $name,
             'tournament_id' => $tournament->id,
             'checked_in' => true,

@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
 
 beforeEach(function () {
@@ -8,7 +8,7 @@ beforeEach(function () {
 });
 
 it('returns a validation error when ending with incomplete matches', function () {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Unfinished Cup', 'open_id' => 'UNFINISHED',
         'mode_type' => 'single_elimination', 'status' => 'started',
     ]);
@@ -27,7 +27,7 @@ it('returns a validation error when ending with incomplete matches', function ()
 });
 
 it('returns a validation error when ending without matches', function () {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Empty Cup', 'open_id' => 'EMPTYEND',
         'mode_type' => 'single_elimination', 'status' => 'started',
     ]);

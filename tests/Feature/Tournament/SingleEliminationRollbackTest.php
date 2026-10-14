@@ -1,25 +1,25 @@
 <?php
 
-use App\Enums\TournamentMatchStateEnum;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentMatchStateEnum;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Services\DtTournamentMatchService;
 
 beforeEach(function () {
     $this->freezeTime();
-    $this->tournament = Tournament::create([
+    $this->tournament = DtTournament::create([
         'name' => 'Rollback Cup',
-        'open_id' => Tournament::generateOpenId(),
+        'open_id' => DtTournament::generateOpenId(),
         'mode_type' => 'single_elimination',
         'status' => 'open',
     ]);
-    $this->service = app(TournamentMatchService::class);
+    $this->service = app(DtTournamentMatchService::class);
 });
 
 function completeRollbackBracket($test, int $players): void
 {
     foreach (range(1, $players) as $index) {
-        Player::create([
+        DtPlayer::create([
             'name' => 'Player '.$index,
             'tournament_id' => $test->tournament->id,
             'checked_in' => true,
@@ -50,7 +50,7 @@ it('clears only dependent results and allows the corrected bracket to finish', f
     $this->service->updateMatchScores($changed->id, '1-3', $newWinner);
 
     expect($changed->fresh()->winner_id)->toBe($newWinner)
-        ->and($changed->fresh()->state)->toBe(TournamentMatchStateEnum::COMPLETE)
+        ->and($changed->fresh()->state)->toBe(DtTournamentMatchStateEnum::COMPLETE)
         ->and($this->tournament->players()->whereNotNull('final_rank')->count())->toBe(0);
 
     foreach (array_slice($affectedIds, 1) as $id) {
@@ -62,7 +62,7 @@ it('clears only dependent results and allows the corrected bracket to finish', f
             ->and($match->completed_at)->toBeNull()
             ->and($match->matchScores()->count())->toBe(0)
             ->and($match->state)->toBe($match->player1_id && $match->player2_id
-                ? TournamentMatchStateEnum::OPEN : TournamentMatchStateEnum::PENDING);
+                ? DtTournamentMatchStateEnum::OPEN : DtTournamentMatchStateEnum::PENDING);
         if ($match->player1_prereq_match_id === $changed->id) {
             expect($match->player1_id)->toBe($newWinner);
         }

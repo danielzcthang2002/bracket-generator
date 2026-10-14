@@ -1,18 +1,18 @@
 <?php
 
-use App\Enums\TournamentMatchStateEnum;
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Models\TournamentMatch;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentMatchStateEnum;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Models\DtTournamentMatch;
+use App\Bracket\Services\DtTournamentMatchService;
 
 /**
  * Free-for-all is multi-round like Swiss (round N+1 depends on round N's
  * results), but heats/ranks instead of 1v1 matches make the state to track
  * heavier. Rather than hand-deriving expected heat shapes and final ranks
- * per case, this file ports FreeForAllService's own algorithm (buildHeats,
+ * per case, this file ports DtFreeForAllService's own algorithm (buildHeats,
  * advancement, tie-break ordering, final-rank tiering) into a standalone
  * PHP reference simulator, then drives the real service in lockstep against
  * it - asserting exact heat composition every round and exact final ranks
@@ -29,9 +29,9 @@ function ffaTournament(int $playerCount, ?int $heatSize = null, ?int $advanceCou
 {
     $attributes = [
         'name' => 'Free For All Test ' . $playerCount,
-        'open_id' => Tournament::generateOpenId(),
-        'mode_type' => TournamentModeEnum::FREE_FOR_ALL,
-        'status' => TournamentStatus::OPEN,
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::FREE_FOR_ALL,
+        'status' => DtTournamentStatus::OPEN,
     ];
 
     if ($heatSize !== null) {
@@ -41,10 +41,10 @@ function ffaTournament(int $playerCount, ?int $heatSize = null, ?int $advanceCou
         $attributes['ffa_advance_count'] = $advanceCount;
     }
 
-    $tournament = Tournament::create($attributes);
+    $tournament = DtTournament::create($attributes);
 
-    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): Player {
-        return Player::create([
+    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): DtPlayer {
+        return DtPlayer::create([
             'name' => 'Player ' . $index,
             'tournament_id' => $tournament->id,
             'checked_in' => true,
@@ -54,7 +54,7 @@ function ffaTournament(int $playerCount, ?int $heatSize = null, ?int $advanceCou
     return [$tournament, $players];
 }
 
-/** Mirrors FreeForAllService::buildHeats() exactly. */
+/** Mirrors DtFreeForAllService::buildHeats() exactly. */
 function ffaBuildHeats(array $orderedIds, int $heatSize): array
 {
     $n = count($orderedIds);
@@ -163,7 +163,7 @@ function ffaAdvanceCountFor(int $heatSize, ?int $configured = null): int
 }
 
 /** Report every not-yet-ranked participant in a round: rank = draft position. */
-function reportFfaRound(TournamentMatch $tournament_match_placeholder = null): void
+function reportFfaRound(DtTournamentMatch $tournament_match_placeholder = null): void
 {
     // placeholder to keep static analyzers quiet about unused import above
 }
@@ -181,7 +181,7 @@ it('builds round 1 heats via snake draft off seed order', function (int $playerC
     [$tournament, $players] = ffaTournament($playerCount, $heatSize);
     $resolvedHeatSize = max(2, $heatSize ?? 4);
 
-    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
+    $matches = app(DtTournamentMatchService::class)->generateMatches($tournament->id);
 
     $expectedHeats = ffaBuildHeats($players->pluck('id')->all(), $resolvedHeatSize);
 
@@ -197,7 +197,7 @@ it('builds round 1 heats via snake draft off seed order', function (int $playerC
             $participant = $roundOne[$i]->participants->first();
             expect($participant->rank)->toBe(1);
             expect($participant->is_winner)->toBeTrue();
-            expect($roundOne[$i]->state)->toBe(TournamentMatchStateEnum::COMPLETE);
+            expect($roundOne[$i]->state)->toBe(DtTournamentMatchStateEnum::COMPLETE);
         }
     }
 })->with('free for all round one cases');
@@ -217,7 +217,7 @@ it('advances heats round by round and assigns exact final ranks', function (int 
     $advanceCount = ffaAdvanceCountFor($resolvedHeatSize);
 
     $reference = ffaSimulate($players->pluck('id')->all(), $resolvedHeatSize, $advanceCount);
-    $service = app(TournamentMatchService::class);
+    $service = app(DtTournamentMatchService::class);
 
     foreach ($reference['rounds'] as $roundIndex => $expectedHeats) {
         $round = $roundIndex + 1;
@@ -245,7 +245,7 @@ it('advances heats round by round and assigns exact final ranks', function (int 
                 ]);
             }
 
-            $match->update(['state' => TournamentMatchStateEnum::COMPLETE]);
+            $match->update(['state' => DtTournamentMatchStateEnum::COMPLETE]);
         }
     }
 

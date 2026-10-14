@@ -1,15 +1,15 @@
 <?php
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Tournament;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtTournament;
 
 it('exposes tournaments through the versioned REST endpoint', function () {
-    $tournament = Tournament::query()->create([
+    $tournament = DtTournament::query()->create([
         'name' => 'Autumn Open',
         'open_id' => 'AUTUMN01',
-        'mode_type' => TournamentModeEnum::SINGLE_ELIMINATION,
-        'status' => TournamentStatus::PENDING,
+        'mode_type' => DtTournamentModeEnum::SINGLE_ELIMINATION,
+        'status' => DtTournamentStatus::PENDING,
     ]);
 
     $this->getJson('/api/v1/tournaments')
@@ -34,11 +34,11 @@ it('creates a tournament with the normalized payload and response format', funct
 });
 
 it('uses one check-in endpoint for both participant states', function () {
-    $tournament = Tournament::query()->create([
+    $tournament = DtTournament::query()->create([
         'name' => 'Check-in Cup',
         'open_id' => 'CHECKIN01',
-        'mode_type' => TournamentModeEnum::SINGLE_ELIMINATION,
-        'status' => TournamentStatus::PENDING,
+        'mode_type' => DtTournamentModeEnum::SINGLE_ELIMINATION,
+        'status' => DtTournamentStatus::PENDING,
     ]);
     $player = $tournament->players()->create(['name' => 'Player One', 'seed' => 1, 'checked_in' => false]);
 
@@ -52,11 +52,11 @@ it('uses one check-in endpoint for both participant states', function () {
 });
 
 it('previews matches without persisting them', function () {
-    $tournament = Tournament::query()->create([
+    $tournament = DtTournament::query()->create([
         'name' => 'Preview Cup',
         'open_id' => 'PREVIEW01',
-        'mode_type' => TournamentModeEnum::ROUND_ROBIN,
-        'status' => TournamentStatus::PENDING,
+        'mode_type' => DtTournamentModeEnum::ROUND_ROBIN,
+        'status' => DtTournamentStatus::PENDING,
     ]);
     $alice = $tournament->players()->create(['name' => 'Alice', 'seed' => 1, 'checked_in' => true]);
     $bob = $tournament->players()->create(['name' => 'Bob', 'seed' => 2, 'checked_in' => true]);
@@ -78,11 +78,11 @@ it('does not expose the legacy json-suffixed routes', function () {
 });
 
 it('prevents bulk participant deletion after a tournament has started', function () {
-    $tournament = Tournament::query()->create([
+    $tournament = DtTournament::query()->create([
         'name' => 'Started Cup',
         'open_id' => 'STARTED01',
-        'mode_type' => TournamentModeEnum::SINGLE_ELIMINATION,
-        'status' => TournamentStatus::STARTED,
+        'mode_type' => DtTournamentModeEnum::SINGLE_ELIMINATION,
+        'status' => DtTournamentStatus::STARTED,
     ]);
     $players = collect([
         $tournament->players()->create(['name' => 'Player One', 'seed' => 1, 'checked_in' => true]),

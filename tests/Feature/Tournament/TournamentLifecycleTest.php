@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\TournamentMatchService;
+use App\Bracket\Services\DtTournamentMatchService;
 use Illuminate\Validation\ValidationException;
 
 beforeEach(function () {
@@ -12,11 +12,11 @@ beforeEach(function () {
 it('always creates pending tournaments', function () {
     $this->post('/tournaments', ['name' => 'Cup', 'mode_type' => 'single_elimination', 'status' => 'ended'])
         ->assertSessionHasNoErrors()->assertRedirect();
-    expect(Tournament::first()->status->value)->toBe('pending');
+    expect(DtTournament::first()->status->value)->toBe('pending');
 });
 
 it('locks mode and check-in after starting while allowing name edits', function (string $status) {
-    $tournament = Tournament::create(['name' => 'Cup', 'open_id' => 'LOCKED', 'mode_type' => 'single_elimination', 'status' => $status]);
+    $tournament = DtTournament::create(['name' => 'Cup', 'open_id' => 'LOCKED', 'mode_type' => 'single_elimination', 'status' => $status]);
     $player = $tournament->players()->create(['name' => 'Alice', 'checked_in' => true]);
 
     $this->put('/tournaments/LOCKED', ['name' => 'Renamed', 'mode_type' => 'swiss'])
@@ -37,7 +37,7 @@ it('locks mode and check-in after starting while allowing name edits', function 
 })->with(['started', 'ended']);
 
 it('allows mode and check-in edits before starting but ignores status edits', function () {
-    $tournament = Tournament::create(['name' => 'Cup', 'open_id' => 'PENDING', 'mode_type' => 'single_elimination', 'status' => 'pending']);
+    $tournament = DtTournament::create(['name' => 'Cup', 'open_id' => 'PENDING', 'mode_type' => 'single_elimination', 'status' => 'pending']);
     $player = $tournament->players()->create(['name' => 'Alice', 'checked_in' => false]);
     $this->put('/tournaments/PENDING', ['name' => 'Cup', 'mode_type' => 'double_elimination', 'status' => 'ended'])
         ->assertSessionHasNoErrors();
@@ -49,7 +49,7 @@ it('allows mode and check-in edits before starting but ignores status edits', fu
 });
 
 it('swaps player seeds from the bracket preview', function () {
-    $tournament = Tournament::create(['name' => 'Cup', 'open_id' => 'RESEED', 'mode_type' => 'single_elimination', 'status' => 'pending']);
+    $tournament = DtTournament::create(['name' => 'Cup', 'open_id' => 'RESEED', 'mode_type' => 'single_elimination', 'status' => 'pending']);
     $firstPlayer = $tournament->players()->create(['name' => 'Alice', 'seed' => 1, 'checked_in' => true]);
     $secondPlayer = $tournament->players()->create(['name' => 'Bob', 'seed' => 2, 'checked_in' => true]);
 
@@ -63,9 +63,9 @@ it('swaps player seeds from the bracket preview', function () {
 });
 
 it('rejects all score updates after ending', function () {
-    $tournament = Tournament::create(['name' => 'Cup', 'open_id' => 'ENDED', 'mode_type' => 'single_elimination', 'status' => 'ended']);
+    $tournament = DtTournament::create(['name' => 'Cup', 'open_id' => 'ENDED', 'mode_type' => 'single_elimination', 'status' => 'ended']);
     $match = $tournament->matches()->create(['round' => 1, 'state' => 'pending', 'suggested_play_order' => 1]);
-    $service = app(TournamentMatchService::class);
+    $service = app(DtTournamentMatchService::class);
     expect(fn () => $service->updateMatchScores($match->id, '1-0', null))->toThrow(ValidationException::class);
     expect(fn () => $service->updateFfaMatchScores($match->id, []))->toThrow(ValidationException::class);
 });

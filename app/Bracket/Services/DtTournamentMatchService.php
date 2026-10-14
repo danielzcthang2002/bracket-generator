@@ -1,0 +1,277 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Bracket\Services;
+
+use App\Bracket\Enums\DtTournamentMatchStateEnum;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Models\DtTournamentMatch;
+use App\Bracket\Models\DtTournamentMatchParticipant;
+use App\Bracket\Contracts\DtHasMode;
+use App\Bracket\Contracts\DtModeResolver;
+use App\Bracket\Services\DtDoubleEliminationService;
+use App\Bracket\Services\DtFreeForAllService;
+use App\Bracket\Services\DtRoundRobinService;
+use App\Bracket\Services\DtSingleEliminationService;
+use App\Bracket\Services\DtSwissService;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class DtTournamentMatchService
+{
+    private function ensureScoresEditable(DtTournamentMatch $match): void
+    {
+        if (DtTournament::findOrFail($match->tournament_id)->status === \App\Bracket\Enums\DtTournamentStatus::ENDED) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'scores' => 'Scores cannot be changed after the tournament ends.',
+            ]);
+        }
+    }
+
+    public function __construct(
+        private DtModeResolver $resolver,
+    ) {}
+
+    /**
+     * Generates matches for a given tournament based on its mode.
+     *
+     * @param int $tournamentId The ID of the tournament to generate matches for.
+     * @return Collection Returns the generated matches or an empty array if the tournament mode is not supported.
+     */
+    public function generateMatches(int $tournamentId): Collection
+    {
+        $tournament = DtTournament::findOrFail($tournamentId);
+
+        $tournamentMode = $tournament->mode_type->value;
+
+        return $this->resolver->resolve($tournamentMode)->initialize($tournament);
+    }
+
+    /**
+     * Updates the scores for a given match and determines the winner.
+     *
+     * @param int $matchId The ID of the match to update scores for.
+     * @param string $scoresCsv A CSV string representing the scores for each set, e.g., "10-5,7-6".
+     * @param int|null $winnerId The ID of the player who won the match. If null, no winner is set. 'tie' for tie match
+     * @return DtTournamentMatch The updated match with the new scores and optionally a winner.
+     */
+    public function updateMatchScores(int $matchId, string $scoresCsv, string|int|null $winnerId): DtTournamentMatch
+    {
+        return DB::transaction(fn () => $this->saveMatchScores($matchId, $scoresCsv, $winnerId));
+    }
+
+    private function saveMatchScores(int $matchId, string $scoresCsv, string|int|null $winnerId): DtTournamentMatch
+    {
+        $match = DtTournamentMatch::findOrFail($matchId);
+        $this->ensureScoresEditable($match);
+        $player1Id = $match->player1_id;
+        $player2Id = $match->player2_id;
+
+        if ($player1Id === null || $player2Id === null) {
+            throw new \InvalidArgumentException('Match must have two players before scores can be submitted.');
+        }
+
+        $isTie = $winnerId === 'tie';
+        $winnerId = $winnerId !== null && $winnerId !== 'tie' ? (int) $winnerId : null;
+
+        if (!$isTie && $winnerId !== null && !in_array($winnerId, [$player1Id, $player2Id], true)) {
+            throw new \InvalidArgumentException('Winner ID must be one of the match players. ');
+        }
+
+        $sets = array_values(array_filter(explode(',', rtrim($scoresCsv, ',')), fn($set) => trim($set) !== ''));
+
+        if (count($sets) === 0) {
+            throw new \InvalidArgumentException('At least one set score is required.');
+        }
+
+        $scoreUpsertData = [];
+        $totalPlayer1Score = 0;
+        $totalPlayer2Score = 0;
+        $swiss = $match->tournament->mode_type === \App\Bracket\Enums\DtTournamentModeEnum::SWISS
+            ? app(DtSwissService::class) : null;
+        $wasDecided = $match->winner_id !== null || $match->is_tie;
+        $previousPairingPoints = $swiss?->pairingPoints($match->tournament);
+
+        $match->matchScores()->delete();
+        foreach ($sets as $key => $value) {
+            $scores = explode('-', $value);
+
+            if (count($scores) !== 2) {
+                throw new \InvalidArgumentException('Invalid scores format. Expected format: "player1_score-player2_score".');
+            }
+
+            $player1_score = (int)$scores[0];
+            $player2_score = (int)$scores[1];
+            $totalPlayer1Score += $player1_score;
+            $totalPlayer2Score += $player2_score;
+
+            $scoreUpsertData[] = [
+                'id' => Str::uuid(),
+                'tournament_match_id' => $matchId,
+                'player_id' => $player1Id,
+                'set' => $key + 1,
+                'score' => $player1_score,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            $scoreUpsertData[] = [
+                'id' => Str::uuid(),
+                'tournament_match_id' => $matchId,
+                'player_id' => $player2Id,
+                'set' => $key + 1,
+                'score' => $player2_score,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        $match->matchScores()->insert(
+            $scoreUpsertData
+        );
+
+        $match->player1_score = $totalPlayer1Score;
+        $match->player2_score = $totalPlayer2Score;
+        $match->winner_id = null;
+        $match->loser_id = null;
+        $match->is_tie = $isTie;
+
+        if ($isTie) {
+            $match->state = DtTournamentMatchStateEnum::COMPLETE;
+        } elseif ($winnerId !== null) {
+            $match->winner_id = $winnerId;
+            $match->loser_id = $winnerId === $match->player1_id ? $match->player2_id : $match->player1_id;
+            $match->state = DtTournamentMatchStateEnum::COMPLETE;
+        }
+
+        $elimination = in_array($match->tournament->mode_type, [
+            \App\Bracket\Enums\DtTournamentModeEnum::SINGLE_ELIMINATION,
+            \App\Bracket\Enums\DtTournamentModeEnum::DOUBLE_ELIMINATION,
+        ], true);
+        if ($elimination && $match->isDirty('winner_id') && $match->getOriginal('winner_id') !== null) {
+            $this->resolver->resolve($match->tournament->mode_type->value)->resetDependentMatches($match);
+            $match->completed_at = null;
+        }
+        if (($elimination || $swiss !== null) && $winnerId === null && !$isTie) {
+            $match->state = DtTournamentMatchStateEnum::OPEN;
+            $match->completed_at = null;
+        }
+
+        $outcomeChanged = $match->isDirty(['winner_id', 'is_tie']);
+        $match->save();
+
+        if ($swiss !== null && $wasDecided) {
+            if ($outcomeChanged || $previousPairingPoints !== $swiss->pairingPoints($match->tournament)) {
+                $match->tournament->matches()->where('round', '>', $match->round)->delete();
+            }
+            // A correction stops at this round; advancing generates fresh pairings.
+            $swiss->refreshResults($match->tournament);
+        } elseif ($swiss !== null && $winnerId === null && !$isTie) {
+            $swiss->refreshResults($match->tournament);
+        } elseif ($winnerId !== null || $isTie || $elimination) {
+            $this->generateMatches($match->tournament_id);
+        }
+
+
+        return $match;
+    }
+
+    /**
+     * Updates scores for a free-for-all match by writing the final participant
+     * order directly onto the participant rows.
+     *
+     * @param array<int, array<string, mixed>> $participantsData
+     */
+    public function updateFfaMatchScores(int $matchId, array $participantsData): DtTournamentMatch
+    {
+        return DB::transaction(fn () => $this->saveFfaMatchScores($matchId, $participantsData));
+    }
+
+    private function saveFfaMatchScores(int $matchId, array $participantsData): DtTournamentMatch
+    {
+        $match = DtTournamentMatch::query()->with('participants')->findOrFail($matchId);
+        $this->ensureScoresEditable($match);
+        $participants = $match->participants;
+
+        if ($participants->isEmpty()) {
+            throw new \InvalidArgumentException('Free-for-all match must have participants before scores can be submitted.');
+        }
+
+        $participantsById = $participants->keyBy('id');
+        $submittedParticipantIds = collect($participantsData)
+            ->pluck('id')
+            ->map(fn($participantId) => (int) $participantId)
+            ->values();
+
+        if ($submittedParticipantIds->count() !== $participants->count()
+            || $submittedParticipantIds->unique()->count() !== $participants->count()
+            || $submittedParticipantIds->diff($participantsById->keys())->isNotEmpty()) {
+            throw new \InvalidArgumentException('Submitted participants must match the match roster exactly.');
+        }
+
+        $normalizedParticipants = collect($participantsData)->values()->map(function (array $participantData, int $index) use ($participantsById): array {
+            $participantId = (int) ($participantData['id'] ?? 0);
+            $participant = $participantsById->get($participantId);
+
+            if ($participant === null) {
+                throw new \InvalidArgumentException('Submitted participants must match the match roster exactly.');
+            }
+
+            $rank = $participantData['rank'] ?? null;
+            $rank = $rank === '' || $rank === null ? null : (int) $rank;
+
+            $score = $participantData['score'] ?? null;
+            $score = $score === '' || $score === null ? null : (float) $score;
+
+            return [
+                'participant' => $participant,
+                'rank' => $rank,
+                'score' => $score,
+                'index' => $index,
+            ];
+        });
+
+        $normalizedParticipants = $normalizedParticipants->map(function (array $participantData): array {
+            $participantData['rank'] = $participantData['rank'] ?? ($participantData['index'] + 1);
+            unset($participantData['index']);
+
+            return $participantData;
+        });
+
+        $submittedRanks = $normalizedParticipants->pluck('rank');
+
+        if ($submittedRanks->contains(fn($rank) => !is_int($rank) || $rank < 1)) {
+            throw new \InvalidArgumentException('Each participant must have a valid rank.');
+        }
+
+        if ($submittedRanks->unique()->count() !== $participants->count()) {
+            throw new \InvalidArgumentException('Each participant rank must be unique.');
+        }
+
+        DB::transaction(function () use ($normalizedParticipants): void {
+            foreach ($normalizedParticipants as $participantData) {
+                /** @var DtTournamentMatchParticipant $participant */
+                $participant = $participantData['participant'];
+
+                $participant->update([
+                    'rank' => $participantData['rank'],
+                    'score' => $participantData['score'],
+                    'is_winner' => $participantData['rank'] === 1,
+                ]);
+            }
+        });
+
+        $match->forceFill([
+            'state' => DtTournamentMatchStateEnum::COMPLETE,
+            'is_tie' => false,
+            'winner_id' => null,
+            'loser_id' => null,
+        ]);
+        $match->save();
+
+        $this->generateMatches($match->tournament_id);
+
+        return $match->refresh()->load(['participants.player']);
+    }
+}

@@ -1,39 +1,39 @@
 <?php
 
-use App\Enums\TournamentMatchStateEnum;
-use App\Models\Tournament;
-use App\Models\TournamentMatch;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentMatchStateEnum;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Models\DtTournamentMatch;
+use App\Bracket\Services\DtTournamentMatchService;
 
-function ffaRollbackPayload(TournamentMatch $match): array
+function ffaRollbackPayload(DtTournamentMatch $match): array
 {
     return $match->participants()->orderBy('position')->get()->values()
         ->map(fn ($row, $index) => ['id' => $row->id, 'rank' => $index + 1, 'score' => 100 - $index])->all();
 }
 
-function finishFfaRollback(Tournament $tournament): void
+function finishFfaRollback(DtTournament $tournament): void
 {
     for ($attempt = 0; $attempt < 100; $attempt++) {
         $match = $tournament->matches()->where('state', 'open')->orderBy('suggested_play_order')->first();
         if (!$match) {
             return;
         }
-        app(TournamentMatchService::class)->updateFfaMatchScores($match->id, ffaRollbackPayload($match));
+        app(DtTournamentMatchService::class)->updateFfaMatchScores($match->id, ffaRollbackPayload($match));
     }
     throw new RuntimeException('Bracket did not finish');
 }
 
 beforeEach(function () {
     $this->freezeTime();
-    $this->tournament = Tournament::create([
-        'name' => 'FFA rollback', 'open_id' => Tournament::generateOpenId(),
+    $this->tournament = DtTournament::create([
+        'name' => 'FFA rollback', 'open_id' => DtTournament::generateOpenId(),
         'mode_type' => 'free_for_all', 'status' => 'started',
         'ffa_heat_size' => 4, 'ffa_advance_count' => 2,
     ]);
     foreach (range(1, 16) as $index) {
         $this->tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => true, 'seed' => $index]);
     }
-    $this->service = app(TournamentMatchService::class);
+    $this->service = app(DtTournamentMatchService::class);
     $this->service->generateMatches($this->tournament->id);
     finishFfaRollback($this->tournament);
 });
@@ -48,9 +48,9 @@ it('rebuilds affected heats and clears dependent results while preserving unrela
     [$payload[1]['rank'], $payload[2]['rank']] = [3, 2];
     $newQualifier = $first->participants()->orderBy('position')->get()[2]->player_id;
     $this->service->updateFfaMatchScores($first->id, $payload);
-    expect($first->fresh()->state)->toBe(TournamentMatchStateEnum::COMPLETE)
+    expect($first->fresh()->state)->toBe(DtTournamentMatchStateEnum::COMPLETE)
         ->and($this->tournament->matches()->where('round', 1)->where('id', '!=', $first->id)->with('participants')->get()->toArray())->toBe($otherFirst)
-        ->and($final->fresh()->state)->toBe(TournamentMatchStateEnum::PENDING)
+        ->and($final->fresh()->state)->toBe(DtTournamentMatchStateEnum::PENDING)
         ->and($final->participants()->count())->toBe(0)
         ->and($this->tournament->players()->whereNotNull('final_rank')->count())->toBe(0);
     $unchanged = 0;
@@ -59,9 +59,9 @@ it('rebuilds affected heats and clears dependent results while preserving unrela
         if ($before->participants->pluck('player_id')->all() === $after->participants->pluck('player_id')->all()) {
             $unchanged++;
             expect($after->participants->toArray())->toBe($before->participants->toArray())
-                ->and($after->state)->toBe(TournamentMatchStateEnum::COMPLETE);
+                ->and($after->state)->toBe(DtTournamentMatchStateEnum::COMPLETE);
         } else {
-            expect($after->state)->toBe(TournamentMatchStateEnum::OPEN)
+            expect($after->state)->toBe(DtTournamentMatchStateEnum::OPEN)
                 ->and($after->participants->every(fn ($row) => $row->rank === null && $row->score === null && !$row->is_winner))->toBeTrue();
         }
     }
@@ -69,7 +69,7 @@ it('rebuilds affected heats and clears dependent results while preserving unrela
         ->and($this->tournament->matches()->where('round', 2)->whereHas('participants', fn ($q) => $q->where('player_id', $newQualifier))->exists())->toBeTrue();
     finishFfaRollback($this->tournament);
     expect($this->tournament->players()->whereNotNull('final_rank')->count())->toBe(16)
-        ->and($final->fresh()->state)->toBe(TournamentMatchStateEnum::COMPLETE);
+        ->and($final->fresh()->state)->toBe(DtTournamentMatchStateEnum::COMPLETE);
 });
 
 it('preserves later results for score edits and eliminated-player rank changes', function (bool $swap) {
@@ -90,7 +90,7 @@ it('clears later slots when the same qualifiers exchange finishing positions', f
     [$payload[0]['rank'], $payload[1]['rank']] = [2, 1];
     $this->service->updateFfaMatchScores($first->id, $payload);
     expect($this->tournament->matches()->where('round', 2)->where('state', 'open')->count())->toBeGreaterThan(0)
-        ->and($this->tournament->matches()->where('round', 3)->first()->state)->toBe(TournamentMatchStateEnum::PENDING);
+        ->and($this->tournament->matches()->where('round', 3)->first()->state)->toBe(DtTournamentMatchStateEnum::PENDING);
 });
 
 it('recalculates final ranks when the final heat is corrected', function () {
@@ -113,8 +113,8 @@ it('rejects duplicate participant submissions without changing the bracket', fun
 });
 
 it('handles corrections with undersized heats and byes', function (int $count, int $heatSize) {
-    $tournament = Tournament::create([
-        'name' => 'Uneven FFA', 'open_id' => Tournament::generateOpenId(),
+    $tournament = DtTournament::create([
+        'name' => 'Uneven FFA', 'open_id' => DtTournament::generateOpenId(),
         'mode_type' => 'free_for_all', 'status' => 'started', 'ffa_heat_size' => $heatSize,
     ]);
     foreach (range(1, $count) as $index) {

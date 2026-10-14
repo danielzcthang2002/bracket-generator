@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -10,7 +10,7 @@ beforeEach(function () {
 
 it('paginates tournaments and retains filters in pagination links', function () {
     for ($index = 1; $index <= 16; $index++) {
-        Tournament::query()->create([
+        DtTournament::query()->create([
             'name' => 'Cup '.$index,
             'open_id' => 'CUP'.$index,
             'mode_type' => 'swiss',
@@ -40,7 +40,7 @@ it('searches names and open IDs while applying both filters', function (string $
         ['Summer Cup', 'MATCH03', 'swiss', 'ended'],
         ['Winter Cup', 'OTHER01', 'swiss', 'open'],
     ] as [$name, $openId, $mode, $status]) {
-        Tournament::query()->create(['name' => $name, 'open_id' => $openId, 'mode_type' => $mode, 'status' => $status]);
+        DtTournament::query()->create(['name' => $name, 'open_id' => $openId, 'mode_type' => $mode, 'status' => $status]);
     }
 
     $this->get('/tournaments?'.http_build_query(['search' => $search, 'mode' => 'swiss', 'status' => 'open']))

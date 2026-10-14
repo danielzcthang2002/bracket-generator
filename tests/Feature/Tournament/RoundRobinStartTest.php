@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\Bracket\Contracts\ModeResolver;
+use App\Bracket\Contracts\DtModeResolver;
 
 it('requires two checked-in players to start round robin through the web and API', function (int $count, bool $api) {
     $this->actingAs(User::factory()->create());
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Round robin eligibility', 'open_id' => 'RRSTART',
         'mode_type' => 'round_robin', 'status' => 'pending', 'head_to_head_count' => 1,
     ]);
@@ -14,7 +14,7 @@ it('requires two checked-in players to start round robin through the web and API
         $tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => $index <= $count]);
     }
     $eligible = $count >= 2;
-    expect(app(ModeResolver::class)->resolve('round_robin')->canStart($tournament))->toBe($eligible)
+    expect(app(DtModeResolver::class)->resolve('round_robin')->canStart($tournament))->toBe($eligible)
         ->and($tournament->fresh()->status->value)->toBe('pending')
         ->and($tournament->matches()->count())->toBe(0);
 

@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Services\DtTournamentMatchService;
 
 dataset('double elimination split participant cases', [
     '3 players' => [
@@ -137,23 +137,23 @@ it('generates a split participant double elimination bracket', function (
     int $expectedWinnersRoundOnePlayerCount,
     int $expectedLosersRoundOnePlayerCount,
 ) {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Double Elimination Split Participant Test ' . $playerCount,
-        'open_id' => Tournament::generateOpenId(),
-        'mode_type' => TournamentModeEnum::DOUBLE_ELIMINATION,
-        'status' => TournamentStatus::OPEN,
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::DOUBLE_ELIMINATION,
+        'status' => DtTournamentStatus::OPEN,
         'split_participant' => true,
     ]);
 
-    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): Player {
-        return Player::create([
+    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): DtPlayer {
+        return DtPlayer::create([
             'name' => 'Player ' . $index,
             'tournament_id' => $tournament->id,
             'checked_in' => true,
         ]);
     });
 
-    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
+    $matches = app(DtTournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($expectedTotalMatchCount);
 

@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Services\DtTournamentMatchService;
 
 /**
  * Single round-robin via the "circle method": one seat fixed, the rest
@@ -88,22 +88,22 @@ it('generates a round robin schedule', function (
     array $expectedRounds,
     int $expectedRoundOnePlayerCount,
 ) {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Round Robin Test ' . $playerCount,
-        'open_id' => Tournament::generateOpenId(),
-        'mode_type' => TournamentModeEnum::ROUND_ROBIN,
-        'status' => TournamentStatus::OPEN,
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::ROUND_ROBIN,
+        'status' => DtTournamentStatus::OPEN,
     ]);
 
-    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): Player {
-        return Player::create([
+    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): DtPlayer {
+        return DtPlayer::create([
             'name' => 'Player ' . $index,
             'tournament_id' => $tournament->id,
             'checked_in' => true,
         ]);
     });
 
-    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
+    $matches = app(DtTournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($expectedTotalMatchCount);
 
@@ -113,7 +113,7 @@ it('generates a round robin schedule', function (
 
     // Circle method guarantees each player faces every other player
     // exactly once - no duplicates, no one missed.
-    $players->each(function (Player $player) use ($matches, $playerCount) {
+    $players->each(function (DtPlayer $player) use ($matches, $playerCount) {
         $opponents = $matches
             ->filter(fn($match) => $match->player1_id === $player->id || $match->player2_id === $player->id)
             ->map(fn($match) => $match->player1_id === $player->id ? $match->player2_id : $match->player1_id);

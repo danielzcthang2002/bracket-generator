@@ -1,13 +1,13 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\Bracket\Contracts\ModeResolver;
-use App\Services\TournamentService;
+use App\Bracket\Contracts\DtModeResolver;
+use App\Bracket\Services\DtTournamentService;
 
 it('validates double elimination checked-in counts before starting', function (bool $split, int $count, bool $eligible) {
     $this->actingAs(User::factory()->create());
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'DE eligibility', 'open_id' => 'DESTART',
         'mode_type' => 'double_elimination', 'status' => 'pending', 'split_participant' => $split,
     ]);
@@ -15,7 +15,7 @@ it('validates double elimination checked-in counts before starting', function (b
     foreach (range(1, $count + 3) as $index) {
         $tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => $index <= $count]);
     }
-    expect(app(ModeResolver::class)->resolve('double_elimination')->canStart($tournament))->toBe($eligible)
+    expect(app(DtModeResolver::class)->resolve('double_elimination')->canStart($tournament))->toBe($eligible)
         ->and($tournament->fresh()->status->value)->toBe('pending')
         ->and($tournament->matches()->count())->toBe(0);
 
@@ -32,7 +32,7 @@ it('validates double elimination checked-in counts before starting', function (b
         return;
     }
 
-    app(TournamentService::class)->startTournament($tournament->open_id);
+    app(DtTournamentService::class)->startTournament($tournament->open_id);
     expect($tournament->fresh()->status->value)->toBe('started')
         ->and($tournament->matches()->count())->toBeGreaterThan(0)
         ->and($tournament->matches()->whereNotNull('player1_id')->whereNotNull('player2_id')->exists())->toBeTrue();

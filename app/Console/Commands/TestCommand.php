@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Services\TournamentMatchService;
-use App\Services\TournamentService;
+use App\Bracket\Services\DtTournamentMatchService;
+use App\Bracket\Services\DtTournamentService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -28,7 +28,7 @@ class TestCommand extends Command
      */
     public function handle()
     {
-        $service = app(TournamentMatchService::class);
+        $service = app(DtTournamentMatchService::class);
 
         $result =  $service->generateMatches(1);
 

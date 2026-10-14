@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
 use App\Http\Requests\Tournament\TournamentStoreRequest;
 use App\Http\Resources\PlayerResource;
 use App\Http\Resources\Tournament\TournamentResource;
 use App\Http\Resources\TournamentMatchResource;
-use App\Models\Tournament;
-use App\Services\Bracket\Contracts\ModeResolver;
-use App\Services\PlayerService;
-use App\Services\TournamentMatchService;
-use App\Services\TournamentService;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Contracts\DtModeResolver;
+use App\Bracket\Services\DtPlayerService;
+use App\Bracket\Services\DtTournamentMatchService;
+use App\Bracket\Services\DtTournamentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -22,15 +22,15 @@ use Illuminate\Validation\Rule;
 class TournamentApiController extends BaseApiController
 {
     public function __construct(
-        private readonly TournamentService $tournamentService,
-        private readonly PlayerService $playerService,
-        private readonly TournamentMatchService $tournamentMatchService,
-        private readonly ModeResolver $modeResolver,
+        private readonly DtTournamentService $tournamentService,
+        private readonly DtPlayerService $playerService,
+        private readonly DtTournamentMatchService $tournamentMatchService,
+        private readonly DtModeResolver $modeResolver,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $tournaments = Tournament::query()
+        $tournaments = DtTournament::query()
             ->withCount(['players', 'matches'])
             ->latest()
             ->get();
@@ -44,7 +44,7 @@ class TournamentApiController extends BaseApiController
 
     public function show(Request $request, string $openId): JsonResponse
     {
-        $tournament = Tournament::query()
+        $tournament = DtTournament::query()
             ->withCount(['players', 'matches'])
             ->where('open_id', $openId)
             ->firstOrFail();
@@ -93,7 +93,7 @@ class TournamentApiController extends BaseApiController
     public function removePlayer(Request $request, string $openId, int $playerId): JsonResponse
     {
         $tournament = $this->findTournament($openId);
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)) {
             return $this->errorResponse('Players cannot be deleted after a tournament has started.', 409);
         }
         $tournament->players()->whereKey($playerId)->firstOrFail();
@@ -105,7 +105,7 @@ class TournamentApiController extends BaseApiController
     public function removePlayers(Request $request, string $openId): JsonResponse
     {
         $tournament = $this->findTournament($openId);
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)) {
             return $this->errorResponse('Players cannot be deleted after a tournament has started.', 409);
         }
 
@@ -158,7 +158,7 @@ class TournamentApiController extends BaseApiController
     public function previewMatches(Request $request, string $openId): JsonResponse
     {
         $tournament = $this->findTournament($openId);
-        $preview = ! in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+        $preview = ! in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)
             ? $this->modeResolver->resolve($tournament->mode_type->value)->previewBracket($tournament)
             : [];
 
@@ -199,7 +199,7 @@ class TournamentApiController extends BaseApiController
     {
         $tournament = $this->findTournament($openId);
         $match = $tournament->matches()->whereKey($matchId)->firstOrFail();
-        $allowsTie = in_array($tournament->mode_type, [TournamentModeEnum::ROUND_ROBIN, TournamentModeEnum::SWISS], true);
+        $allowsTie = in_array($tournament->mode_type, [DtTournamentModeEnum::ROUND_ROBIN, DtTournamentModeEnum::SWISS], true);
         $allowedWinners = array_values(array_filter([$match->player1_id, $match->player2_id]));
 
         $validated = $request->validate([
@@ -219,8 +219,8 @@ class TournamentApiController extends BaseApiController
         return $this->successResponse(new TournamentMatchResource($updatedMatch->load(['matchScores', 'player1', 'player2'])), 'Match score updated successfully.');
     }
 
-    private function findTournament(string $openId): Tournament
+    private function findTournament(string $openId): DtTournament
     {
-        return Tournament::query()->where('open_id', $openId)->firstOrFail();
+        return DtTournament::query()->where('open_id', $openId)->firstOrFail();
     }
 }

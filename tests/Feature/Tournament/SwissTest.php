@@ -1,12 +1,12 @@
 <?php
 
-use App\Enums\TournamentMatchStateEnum;
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Models\TournamentMatch;
-use App\Services\TournamentMatchService;
+use App\Bracket\Enums\DtTournamentMatchStateEnum;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Models\DtTournamentMatch;
+use App\Bracket\Services\DtTournamentMatchService;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,11 +20,11 @@ use Illuminate\Support\Collection;
 
 function swissTournament(int $playerCount): array
 {
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Swiss Test ' . $playerCount,
-        'open_id' => Tournament::generateOpenId(),
-        'mode_type' => TournamentModeEnum::SWISS,
-        'status' => TournamentStatus::OPEN,
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::SWISS,
+        'status' => DtTournamentStatus::OPEN,
         'points_per_match_win' => 1,
         'points_per_match_tie' => 0.5,
         'points_per_set_win' => 0,
@@ -32,8 +32,8 @@ function swissTournament(int $playerCount): array
         'points_per_bye' => 1,
     ]);
 
-    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): Player {
-        return Player::create([
+    $players = collect(range(1, $playerCount))->map(function (int $index) use ($tournament): DtPlayer {
+        return DtPlayer::create([
             'name' => 'Player ' . $index,
             'tournament_id' => $tournament->id,
             'checked_in' => true,
@@ -77,18 +77,18 @@ function pairKey(int $a, int $b): string
 }
 
 /** Mark every real (non-bye) match in a round as decided, player1 winning. */
-function completeSwissRound(Tournament $tournament, int $round): void
+function completeSwissRound(DtTournament $tournament, int $round): void
 {
-    TournamentMatch::query()
+    DtTournamentMatch::query()
         ->where('tournament_id', $tournament->id)
         ->where('round', $round)
         ->whereNotNull('player2_id', 'and')
         ->get()
-        ->each(function (TournamentMatch $match) {
+        ->each(function (DtTournamentMatch $match) {
             $match->update([
                 'winner_id' => $match->player1_id,
                 'is_tie' => false,
-                'state' => TournamentMatchStateEnum::COMPLETE,
+                'state' => DtTournamentMatchStateEnum::COMPLETE,
             ]);
         });
 }
@@ -109,7 +109,7 @@ it('generates round 1 via fold seeding', function (
 ) {
     [$tournament, $players] = swissTournament($playerCount);
 
-    $matches = app(TournamentMatchService::class)->generateMatches($tournament->id);
+    $matches = app(DtTournamentMatchService::class)->generateMatches($tournament->id);
 
     expect($matches)->toHaveCount($hasBye ? $expectedMatchCount + 1 : $expectedMatchCount);
     expect($matches->where('round', 1))->toHaveCount($hasBye ? $expectedMatchCount + 1 : $expectedMatchCount);
@@ -140,7 +140,7 @@ it('generates round 1 via fold seeding', function (
         expect($byeMatch)->not->toBeNull();
         expect($byeMatch->player1_id)->toBe($expectedByeId);
         expect($byeMatch->winner_id)->toBe($expectedByeId);
-        expect($byeMatch->state)->toBe(TournamentMatchStateEnum::COMPLETE);
+        expect($byeMatch->state)->toBe(DtTournamentMatchStateEnum::COMPLETE);
     } else {
         expect($byeMatch)->toBeNull();
     }
@@ -160,7 +160,7 @@ it('advances one round at a time until final ranks are assigned', function (
     bool $allowsForcedRematch,
 ) {
     [$tournament, $players] = swissTournament($playerCount);
-    $service = app(TournamentMatchService::class);
+    $service = app(DtTournamentMatchService::class);
     $isOdd = $playerCount % 2 === 1;
 
     $seenPairKeys = [];

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Enums\TournamentModeEnum;
-use App\Enums\TournamentStatus;
-use App\Models\Player;
-use App\Models\Tournament;
-use App\Services\Bracket\Contracts\ModeResolver;
-use App\Services\PlayerService;
-use App\Services\TournamentMatchService;
-use App\Services\TournamentService;
+use App\Bracket\Enums\DtTournamentModeEnum;
+use App\Bracket\Enums\DtTournamentStatus;
+use App\Bracket\Models\DtPlayer;
+use App\Bracket\Models\DtTournament;
+use App\Bracket\Contracts\DtModeResolver;
+use App\Bracket\Services\DtPlayerService;
+use App\Bracket\Services\DtTournamentMatchService;
+use App\Bracket\Services\DtTournamentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,8 +26,8 @@ class TournamentController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'mode' => ['nullable', Rule::in(TournamentModeEnum::options())],
-            'status' => ['nullable', Rule::in(TournamentStatus::options())],
+            'mode' => ['nullable', Rule::in(DtTournamentModeEnum::options())],
+            'status' => ['nullable', Rule::in(DtTournamentStatus::options())],
         ]);
         $filters = [
             'search' => trim($validated['search'] ?? ''),
@@ -35,7 +35,7 @@ class TournamentController extends Controller
             'status' => $validated['status'] ?? '',
         ];
 
-        $tournaments = Tournament::query()
+        $tournaments = DtTournament::query()
             ->withCount(['players', 'matches'])
             ->when($filters['search'] !== '', function ($query) use ($filters) {
                 $query->where(function ($query) use ($filters) {
@@ -49,7 +49,7 @@ class TournamentController extends Controller
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString()
-            ->through(function (Tournament $tournament): array {
+            ->through(function (DtTournament $tournament): array {
                 return [
                     'id' => $tournament->id,
                     'name' => $tournament->name,
@@ -67,16 +67,16 @@ class TournamentController extends Controller
         return Inertia::render('tournament/tournament-index', [
             'tournaments' => $tournaments,
             'filters' => $filters,
-            'modeOptions' => TournamentModeEnum::options(),
-            'statusOptions' => TournamentStatus::options(),
+            'modeOptions' => DtTournamentModeEnum::options(),
+            'statusOptions' => DtTournamentStatus::options(),
         ]);
     }
 
     public function create(): Response
     {
         return Inertia::render('tournament/tournament-create', [
-            'modeOptions' => TournamentModeEnum::options(),
-            'statusOptions' => TournamentStatus::options(),
+            'modeOptions' => DtTournamentModeEnum::options(),
+            'statusOptions' => DtTournamentStatus::options(),
         ]);
     }
 
@@ -84,9 +84,9 @@ class TournamentController extends Controller
     {
         $validated = $this->validateTournament($request);
 
-        $tournament = Tournament::query()->create([
+        $tournament = DtTournament::query()->create([
             'name' => $validated['name'],
-            'open_id' => Tournament::generateOpenId(),
+            'open_id' => DtTournament::generateOpenId(),
             'mode_type' => $validated['mode_type'],
             'description' => $validated['description'] ?? null,
             'start_at' => $validated['start_at'] ?? null,
@@ -94,7 +94,7 @@ class TournamentController extends Controller
             'require_check_in' => $validated['require_check_in'] ?? false,
             'check_in_time' => $validated['check_in_time'] ?? null,
             'max_entry' => $validated['max_entry'] ?? null,
-            'status' => TournamentStatus::PENDING,
+            'status' => DtTournamentStatus::PENDING,
             'split_participant' => $validated['split_participant'] ?? false,
             'ffa_heat_size' => $validated['ffa_heat_size'] ?? null,
             'ffa_advance_count' => $validated['ffa_advance_count'] ?? null,
@@ -113,9 +113,9 @@ class TournamentController extends Controller
             ->with('success', 'Tournament created successfully.');
     }
 
-    public function show(string $openId, ModeResolver $modeResolver): Response
+    public function show(string $openId, DtModeResolver $modeResolver): Response
     {
-        $tournament = Tournament::query()
+        $tournament = DtTournament::query()
             ->withCount(['players', 'matches'])
             ->with([
                 'players',
@@ -125,7 +125,7 @@ class TournamentController extends Controller
             ->firstOrFail();
 
         return Inertia::render('tournament/tournament-show', [
-            'bracketPreview' => ! in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+            'bracketPreview' => ! in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)
                 ? $modeResolver->resolve($tournament->mode_type->value)->previewBracket($tournament)
                 : [],
             'tournament' => [
@@ -200,11 +200,11 @@ class TournamentController extends Controller
 
     public function edit(string $openId): Response
     {
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
 
         return Inertia::render('tournament/tournament-edit', [
-            'modeOptions' => TournamentModeEnum::options(),
-            'statusOptions' => TournamentStatus::options(),
+            'modeOptions' => DtTournamentModeEnum::options(),
+            'statusOptions' => DtTournamentStatus::options(),
             'tournament' => [
                 'name' => $tournament->name,
                 'open_id' => $tournament->open_id,
@@ -235,19 +235,19 @@ class TournamentController extends Controller
     {
         $validated = $this->validateTournament($request);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)
             && $validated['mode_type'] !== $tournament->mode_type->value) {
             throw ValidationException::withMessages(['mode_type' => 'Mode cannot be changed after the tournament starts.']);
         }
-        $service = app(TournamentService::class);
+        $service = app(DtTournamentService::class);
         if ($validated['mode_type'] === 'swiss' && array_key_exists('swiss_rounds', $validated)) {
             $service->validateSwissRounds($tournament, isset($validated['swiss_rounds']) ? (int) $validated['swiss_rounds'] : null);
         }
         DB::transaction(function () use ($tournament, $validated, $service): void {
             $tournament->update($validated);
-            if ($tournament->mode_type === TournamentModeEnum::SWISS && $tournament->wasChanged('swiss_rounds')
-                && $tournament->status === TournamentStatus::STARTED) {
+            if ($tournament->mode_type === DtTournamentModeEnum::SWISS && $tournament->wasChanged('swiss_rounds')
+                && $tournament->status === DtTournamentStatus::STARTED) {
                 $service->generateMatches($tournament->open_id);
             }
         });
@@ -259,7 +259,7 @@ class TournamentController extends Controller
 
     public function destroy(string $openId): RedirectResponse
     {
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
 
         $tournament->delete();
 
@@ -272,7 +272,7 @@ class TournamentController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'mode_type' => ['required', Rule::in(TournamentModeEnum::options())],
+            'mode_type' => ['required', Rule::in(DtTournamentModeEnum::options())],
             'description' => ['nullable', 'string', 'max:1000'],
             'start_at' => ['nullable', 'date'],
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
@@ -293,7 +293,7 @@ class TournamentController extends Controller
         ]);
     }
 
-    public function updateSwissRounds(Request $request, string $openId, TournamentService $service): RedirectResponse
+    public function updateSwissRounds(Request $request, string $openId, DtTournamentService $service): RedirectResponse
     {
         $validated = $request->validate(['swiss_rounds' => ['required', 'integer', 'min:1']]);
         $service->updateSwissRounds($openId, (int) $validated['swiss_rounds']);
@@ -301,7 +301,7 @@ class TournamentController extends Controller
         return redirect()->route('tournament.show', $openId)->with('success', 'Swiss rounds updated successfully.');
     }
 
-    public function storePlayer(Request $request, string $openId, PlayerService $playerService): RedirectResponse
+    public function storePlayer(Request $request, string $openId, DtPlayerService $playerService): RedirectResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -326,15 +326,15 @@ class TournamentController extends Controller
             'count' => ['required', 'integer', 'min:1', 'max:512'],
         ]);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
 
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)) {
             return back()->withErrors(['players' => 'Players cannot be added after a tournament has started.']);
         }
         $prefix = trim($validated['prefix']);
         $count = (int) $validated['count'];
         DB::transaction(function () use ($tournament, $prefix, $count): void {
-            $latestSeed = Player::query()
+            $latestSeed = DtPlayer::query()
                 ->where('tournament_id', $tournament->id)
                 ->lockForUpdate()
                 ->orderByDesc('seed')
@@ -354,7 +354,7 @@ class TournamentController extends Controller
                 ];
             }
 
-            Player::query()->insert($players);
+            DtPlayer::query()->insert($players);
         });
 
         return redirect()
@@ -369,15 +369,15 @@ class TournamentController extends Controller
             'checked_in' => ['sometimes', 'boolean'],
         ]);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
 
-        $player = Player::query()
+        $player = DtPlayer::query()
             ->where('id', $playerId)
             ->where('tournament_id', $tournament->id)
             ->firstOrFail();
 
         $isCheckedIn = $validated['checked_in'] ?? $player->checked_in;
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)
             && $isCheckedIn !== $player->checked_in) {
             throw ValidationException::withMessages(['checked_in' => 'Check-in cannot be changed after the tournament starts.']);
         }
@@ -395,14 +395,14 @@ class TournamentController extends Controller
             ->with('success', 'Player updated successfully.');
     }
 
-    public function swapPlayerSeeds(Request $request, string $openId, PlayerService $playerService): RedirectResponse
+    public function swapPlayerSeeds(Request $request, string $openId, DtPlayerService $playerService): RedirectResponse
     {
         $validated = $request->validate([
             'first_player_id' => ['required', 'integer', 'different:second_player_id'],
             'second_player_id' => ['required', 'integer'],
         ]);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
         $playerIds = [(int) $validated['first_player_id'], (int) $validated['second_player_id']];
 
         if ($tournament->players()->whereKey($playerIds)->count() !== 2) {
@@ -420,18 +420,18 @@ class TournamentController extends Controller
 
     public function destroyPlayer(string $openId, int $playerId): RedirectResponse
     {
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
 
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)) {
             return back()->withErrors(['player' => 'Players cannot be deleted after a tournament has started.']);
         }
 
-        Player::query()
+        DtPlayer::query()
             ->where('id', $playerId)
             ->where('tournament_id', $tournament->id)
             ->firstOrFail();
 
-        app(\App\Services\PlayerService::class)->removePlayer($playerId);
+        app(\App\Bracket\Services\DtPlayerService::class)->removePlayer($playerId);
 
         return redirect()
             ->route('tournament.show', $openId)
@@ -440,9 +440,9 @@ class TournamentController extends Controller
 
     public function destroyPlayersBulk(Request $request, string $openId): RedirectResponse
     {
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
 
-        if (in_array($tournament->status, [TournamentStatus::STARTED, TournamentStatus::ENDED], true)) {
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)) {
             return back()->withErrors(['players' => 'Players cannot be deleted after a tournament has started.']);
         }
 
@@ -451,7 +451,7 @@ class TournamentController extends Controller
             'player_ids.*' => ['required', 'integer', 'distinct'],
         ]);
 
-        $playerService = app(\App\Services\PlayerService::class);
+        $playerService = app(\App\Bracket\Services\DtPlayerService::class);
         $deletedCount = $playerService->removePlayers($openId, $validated['player_ids']);
 
         return redirect()
@@ -461,7 +461,7 @@ class TournamentController extends Controller
 
     public function startTournament(string $openId): RedirectResponse
     {
-        $service = app(TournamentService::class);
+        $service = app(DtTournamentService::class);
 
         $service->startTournament($openId);
 
@@ -472,7 +472,7 @@ class TournamentController extends Controller
 
     public function endTournament(string $openId): RedirectResponse
     {
-        $service = app(TournamentService::class);
+        $service = app(DtTournamentService::class);
 
         $service->endTournament($openId);
 
@@ -488,16 +488,16 @@ class TournamentController extends Controller
             'winner_id' => ['nullable', 'string'],
         ]);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
         $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
 
-        if (($validated['winner_id'] ?? null) === 'tie' && ! in_array($tournament->mode_type, [TournamentModeEnum::ROUND_ROBIN, TournamentModeEnum::SWISS], true)) {
+        if (($validated['winner_id'] ?? null) === 'tie' && ! in_array($tournament->mode_type, [DtTournamentModeEnum::ROUND_ROBIN, DtTournamentModeEnum::SWISS], true)) {
             throw ValidationException::withMessages([
                 'winner_id' => 'Ties are only available for round robin and Swiss tournaments.',
             ]);
         }
 
-        $service = app(TournamentMatchService::class);
+        $service = app(DtTournamentMatchService::class);
         $service->updateMatchScores(
             $match->id,
             $validated['scores_csv'],
@@ -518,10 +518,10 @@ class TournamentController extends Controller
             'participants.*.score' => ['nullable', 'numeric'],
         ]);
 
-        $tournament = Tournament::query()->where('open_id', $openId)->firstOrFail();
+        $tournament = DtTournament::query()->where('open_id', $openId)->firstOrFail();
         $match = $tournament->matches()->where('id', $matchId)->firstOrFail();
 
-        $service = app(TournamentMatchService::class);
+        $service = app(DtTournamentMatchService::class);
         $service->updateFfaMatchScores(
             $match->id,
             $validated['participants'],

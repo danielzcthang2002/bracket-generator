@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources\Tournament;
 
-use App\Enums\TournamentModeEnum;
+use App\Bracket\Enums\DtTournamentModeEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,7 +27,7 @@ class TournamentResource extends JsonResource
             'check_in_time' => $this->check_in_time ? $this->check_in_time : null,
             'max_entry' => $this->max_entry,
             'status' => $this->status?->value,
-            'split_participant' => $this->when($this->mode_type === TournamentModeEnum::DOUBLE_ELIMINATION, $this->split_participant),
+            'split_participant' => $this->when($this->mode_type === DtTournamentModeEnum::DOUBLE_ELIMINATION, $this->split_participant),
             'ffa_heat_size' => $this->whenNotNull($this->ffa_heat_size),
             'ffa_advance_count' => $this->whenNotNull($this->ffa_advance_count),
             'head_to_head_count' => $this->whenNotNull($this->head_to_head_count),

@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\Bracket\Contracts\ModeResolver;
-use App\Services\TournamentService;
+use App\Bracket\Contracts\DtModeResolver;
+use App\Bracket\Services\DtTournamentService;
 
 beforeEach(function () {
-    $this->tournament = Tournament::create([
+    $this->tournament = DtTournament::create([
         'name' => 'Start eligibility', 'open_id' => 'STARTCHECK',
         'mode_type' => 'single_elimination', 'status' => 'pending',
     ]);
@@ -16,7 +16,7 @@ it('checks the actual checked-in roster without modifying the tournament', funct
     foreach (range(1, 6) as $index) {
         $this->tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => $index <= $checkedIn]);
     }
-    $mode = app(ModeResolver::class)->resolve('single_elimination');
+    $mode = app(DtModeResolver::class)->resolve('single_elimination');
     expect($mode->canStart($this->tournament))->toBe($expected)
         ->and($this->tournament->fresh()->status->value)->toBe('pending')
         ->and($this->tournament->matches()->count())->toBe(0);
@@ -37,7 +37,7 @@ it('starts with two or more checked-in players including uneven brackets', funct
     foreach (range(1, $count) as $index) {
         $this->tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => true]);
     }
-    app(TournamentService::class)->startTournament('STARTCHECK');
+    app(DtTournamentService::class)->startTournament('STARTCHECK');
     expect($this->tournament->fresh()->status->value)->toBe('started')
         ->and($this->tournament->matches()->count())->toBe($count - 1);
 })->with([2, 3, 5]);

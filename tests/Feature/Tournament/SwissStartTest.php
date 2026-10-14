@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Tournament;
+use App\Bracket\Models\DtTournament;
 use App\Models\User;
-use App\Services\Bracket\Contracts\ModeResolver;
+use App\Bracket\Contracts\DtModeResolver;
 
 it('validates Swiss starts without restricting the configured round count', function (int $count, int $rounds, bool $api) {
     $this->actingAs(User::factory()->create());
-    $tournament = Tournament::create([
+    $tournament = DtTournament::create([
         'name' => 'Swiss eligibility', 'open_id' => 'SWISSSTART',
         'mode_type' => 'swiss', 'status' => 'pending', 'swiss_rounds' => $rounds,
     ]);
@@ -14,7 +14,7 @@ it('validates Swiss starts without restricting the configured round count', func
         $tournament->players()->create(['name' => 'Player '.$index, 'checked_in' => $index <= $count]);
     }
     $eligible = $count >= 2;
-    expect(app(ModeResolver::class)->resolve('swiss')->canStart($tournament))->toBe($eligible)
+    expect(app(DtModeResolver::class)->resolve('swiss')->canStart($tournament))->toBe($eligible)
         ->and($tournament->fresh()->status->value)->toBe('pending')
         ->and($tournament->matches()->count())->toBe(0);
 
