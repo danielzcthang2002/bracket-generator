@@ -17,7 +17,7 @@ abstract class DtModeService
     abstract public function previewBracket(DtTournament $tournament): array;
 
     /**
-     * Retrieve checked-in players in seed order.
+     * Retrieve players in seed order, requiring check-in only when configured.
      *
      * @param  array<int>|null  $playerIds
      * @return Collection<int, DtPlayer>
@@ -25,7 +25,7 @@ abstract class DtModeService
     protected function getPlayers(DtTournament $tournament, ?array $playerIds = null): Collection
     {
         return $tournament->players()
-            ->checkedIn()
+            ->when($tournament->require_check_in, fn ($query) => $query->checkedIn())
             ->when($playerIds !== null, fn ($query) => $query->whereIn('id', $playerIds))
             ->orderBy('seed')
             ->orderBy('id')

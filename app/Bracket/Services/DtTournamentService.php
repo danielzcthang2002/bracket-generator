@@ -96,9 +96,21 @@ class DtTournamentService
         }
     }
 
+    public function validateCheckInRequirement(DtTournament $tournament, array $data): void
+    {
+        if (in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)
+            && array_key_exists('require_check_in', $data)
+            && (bool) $data['require_check_in'] !== $tournament->require_check_in) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'require_check_in' => 'Check-in requirement cannot be changed after the tournament starts.',
+            ]);
+        }
+    }
+
     public function updateTournament(string $openId, array $data): DtTournament
     {
         $existing = DtTournament::query()->where('open_id', $openId)->firstOrFail();
+        $this->validateCheckInRequirement($existing, $data);
         if (($data['mode_type'] ?? $existing->mode_type->value) === 'swiss' && array_key_exists('swiss_rounds', $data)) {
             $this->validateSwissRounds($existing, isset($data['swiss_rounds']) ? (int) $data['swiss_rounds'] : null);
         }

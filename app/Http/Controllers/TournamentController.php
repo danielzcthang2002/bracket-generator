@@ -241,6 +241,7 @@ class TournamentController extends Controller
             throw ValidationException::withMessages(['mode_type' => 'Mode cannot be changed after the tournament starts.']);
         }
         $service = app(DtTournamentService::class);
+        $service->validateCheckInRequirement($tournament, $validated);
         if ($validated['mode_type'] === 'swiss' && array_key_exists('swiss_rounds', $validated)) {
             $service->validateSwissRounds($tournament, isset($validated['swiss_rounds']) ? (int) $validated['swiss_rounds'] : null);
         }

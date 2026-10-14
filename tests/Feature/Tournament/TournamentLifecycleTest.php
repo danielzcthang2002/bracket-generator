@@ -62,6 +62,36 @@ it('swaps player seeds from the bracket preview', function () {
         ->and($secondPlayer->fresh()->seed)->toBe(1);
 });
 
+it('locks the check-in requirement after starting through the web and API', function (string $status, bool $required) {
+    $tournament = DtTournament::create([
+        'name' => 'Cup', 'open_id' => 'CHECKINLOCK', 'mode_type' => 'single_elimination',
+        'status' => $status, 'require_check_in' => $required,
+    ]);
+    $payload = ['name' => 'Renamed', 'mode_type' => 'single_elimination', 'require_check_in' => !$required];
+
+    $this->put('/tournaments/CHECKINLOCK', $payload)->assertSessionHasErrors('require_check_in');
+    $this->putJson('/api/v1/tournaments/CHECKINLOCK', $payload)
+        ->assertUnprocessable()->assertJsonValidationErrors('require_check_in');
+    expect($tournament->fresh()->require_check_in)->toBe($required)
+        ->and($tournament->fresh()->name)->toBe('Cup');
+
+    $payload['require_check_in'] = $required;
+    $this->put('/tournaments/CHECKINLOCK', $payload)->assertSessionHasNoErrors();
+    expect($tournament->fresh()->name)->toBe('Renamed')
+        ->and($tournament->fresh()->require_check_in)->toBe($required);
+})->with(['started', 'ended'])->with([true, false]);
+
+it('allows changing the check-in requirement before starting', function (bool $required) {
+    $tournament = DtTournament::create([
+        'name' => 'Cup', 'open_id' => 'CHECKINEDIT', 'mode_type' => 'single_elimination',
+        'status' => 'pending', 'require_check_in' => $required,
+    ]);
+    $this->put('/tournaments/CHECKINEDIT', [
+        'name' => 'Cup', 'mode_type' => 'single_elimination', 'require_check_in' => !$required,
+    ])->assertSessionHasNoErrors();
+    expect($tournament->fresh()->require_check_in)->toBe(!$required);
+})->with([true, false]);
+
 it('rejects all score updates after ending', function () {
     $tournament = DtTournament::create(['name' => 'Cup', 'open_id' => 'ENDED', 'mode_type' => 'single_elimination', 'status' => 'ended']);
     $match = $tournament->matches()->create(['round' => 1, 'state' => 'pending', 'suggested_play_order' => 1]);

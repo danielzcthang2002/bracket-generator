@@ -8,6 +8,26 @@ use App\Models\User;
 use App\Bracket\Contracts\DtModeResolver;
 use Inertia\Testing\AssertableInertia as Assert;
 
+it('includes unchecked players in previews only when check-in is optional', function (bool $requireCheckIn) {
+    $tournament = DtTournament::create([
+        'name' => 'Check-in preview',
+        'open_id' => DtTournament::generateOpenId(),
+        'mode_type' => DtTournamentModeEnum::SINGLE_ELIMINATION,
+        'status' => DtTournamentStatus::PENDING,
+        'require_check_in' => $requireCheckIn,
+    ]);
+    $first = $tournament->players()->create(['name' => 'First', 'seed' => 1, 'checked_in' => true]);
+    $second = $tournament->players()->create(['name' => 'Second', 'seed' => 2, 'checked_in' => true]);
+    $unchecked = $tournament->players()->create(['name' => 'Unchecked', 'seed' => 3, 'checked_in' => false]);
+
+    $preview = app(DtModeResolver::class)->resolve('single_elimination')->previewBracket($tournament);
+    $playerIds = collect($preview)->flatten(1)
+        ->flatMap(fn ($match) => [$match['player1'], $match['player2']])
+        ->where('type', 'player')->pluck('id')->sort()->values()->all();
+
+    expect($playerIds)->toBe($requireCheckIn ? [$first->id, $second->id] : [$first->id, $second->id, $unchecked->id]);
+})->with([true, false]);
+
 it('previews deterministic matches without writing data', function (DtTournamentModeEnum $mode, int $count, bool $split) {
     $tournament = DtTournament::create([
         'name' => 'Preview test',

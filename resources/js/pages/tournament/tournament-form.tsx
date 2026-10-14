@@ -37,6 +37,7 @@ interface TournamentFormProps {
     submitLabel: string;
     modeOptions: string[];
     modeLocked?: boolean;
+    checkInRequirementLocked?: boolean;
     statusOptions: string[];
     data: TournamentFormData;
     processing: boolean;
@@ -62,6 +63,7 @@ export default function TournamentForm({
     submitLabel,
     modeOptions,
     modeLocked = false,
+    checkInRequirementLocked = false,
     statusOptions,
     data,
     processing,
@@ -349,10 +351,13 @@ export default function TournamentForm({
                             id="require_check_in"
                             checked={data.require_check_in}
                             onCheckedChange={(checked) => setData('require_check_in', Boolean(checked))}
-                            disabled={processing}
+                            disabled={processing || checkInRequirementLocked}
                         />
                         <Label htmlFor="require_check_in">Require check-in</Label>
                     </div>
+
+                    {checkInRequirementLocked && <p className="text-muted-foreground text-sm">Check-in requirement is locked after the tournament starts.</p>}
+                    <InputError message={errors.require_check_in} />
 
                     {isDoubleElimination && (
                         <div className="flex items-center gap-2">

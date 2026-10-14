@@ -243,6 +243,8 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     const [editingPlayer, setEditingPlayer] = useState<TournamentPlayer | null>(null);
     const [deletingPlayer, setDeletingPlayer] = useState<TournamentPlayer | null>(null);
     const [confirmingTournamentDelete, setConfirmingTournamentDelete] = useState(false);
+    const [confirmingTournamentStart, setConfirmingTournamentStart] = useState(false);
+    const [confirmingTournamentEnd, setConfirmingTournamentEnd] = useState(false);
     const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
     const [playersOpen, setPlayersOpen] = useState(false);
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
@@ -334,23 +336,25 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     };
 
     const startTournament = () => {
-        if (startTournamentProcessing) {
+        if (!confirmingTournamentStart || startTournamentProcessing || tournament.status !== 'pending') {
             return;
         }
         postStartTournament(route('tournament.start', [tournament.open_id]), {
             preserveScroll: true,
             onStart: () => setTournamentActionError(null),
             onError: (errors) => setTournamentActionError(Object.values(errors)[0] ?? 'Unable to start the tournament.'),
+            onFinish: () => setConfirmingTournamentStart(false),
         });
     };
 
     const endTournament = () => {
-        if (endTournamentProcessing) return;
+        if (!confirmingTournamentEnd || endTournamentProcessing || tournament.status !== 'started') return;
 
         postEndTournament(route('tournament.end', [tournament.open_id]), {
             preserveScroll: true,
             onStart: () => setTournamentActionError(null),
             onError: (errors) => setTournamentActionError(Object.values(errors)[0] ?? 'Unable to end the tournament.'),
+            onFinish: () => setConfirmingTournamentEnd(false),
         });
     };
 
@@ -381,12 +385,12 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                     <div className="relative flex flex-wrap items-center gap-2">
                         {/* <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} /> */}
                         {tournament.status == 'pending' && (
-                            <Button onClick={startTournament} disabled={startTournamentProcessing} className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">
+                            <Button onClick={() => setConfirmingTournamentStart(true)} disabled={startTournamentProcessing} className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">
                                 Start tournament
                             </Button>
                         )}
                         {tournament.status == 'started' && (
-                            <Button variant="destructive" onClick={endTournament} disabled={endTournamentProcessing} className="rounded-full">
+                            <Button variant="destructive" onClick={() => setConfirmingTournamentEnd(true)} disabled={endTournamentProcessing} className="rounded-full">
                                 End tournament
                             </Button>
                         )}
@@ -708,6 +712,44 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                 player={editingPlayer}
                 checkInLocked={tournament.status === 'started' || tournament.status === 'ended'}
             />
+
+            <Dialog open={confirmingTournamentStart} onOpenChange={(open) => !startTournamentProcessing && setConfirmingTournamentStart(open)}>
+                <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
+                    <DialogTitle>Start tournament?</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to start {tournament.name}? The bracket will be generated, and player check-in and seed changes will be locked.
+                    </DialogDescription>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" type="button" className="rounded-full" disabled={startTournamentProcessing}>
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button type="button" className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300" onClick={startTournament} disabled={startTournamentProcessing}>
+                            {startTournamentProcessing ? 'Starting…' : 'Start tournament'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={confirmingTournamentEnd} onOpenChange={(open) => !endTournamentProcessing && setConfirmingTournamentEnd(open)}>
+                <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
+                    <DialogTitle>End tournament?</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to end {tournament.name}? The tournament will be marked as ended, and match scores will be locked.
+                    </DialogDescription>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" type="button" className="rounded-full" disabled={endTournamentProcessing}>
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button variant="destructive" type="button" className="rounded-full" onClick={endTournament} disabled={endTournamentProcessing}>
+                            {endTournamentProcessing ? 'Ending…' : 'End tournament'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={deletingPlayer !== null} onOpenChange={(open) => !open && setDeletingPlayer(null)}>
                 <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">
