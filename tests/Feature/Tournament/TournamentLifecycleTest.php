@@ -9,6 +9,72 @@ beforeEach(function () {
     $this->actingAs(User::factory()->create());
 });
 
+it('rolls back one status step while resetting only started brackets', function (string $mode, string $status, bool $api) {
+    $tournament = DtTournament::create([
+        'name' => 'Rollback Cup', 'open_id' => 'ROLLBACK', 'mode_type' => $mode,
+        'status' => $status, 'swiss_rounds' => 3, 'ffa_heat_size' => 4, 'ffa_advance_count' => 2,
+    ]);
+    $player = $tournament->players()->create(['name' => 'Alice', 'seed' => 1, 'checked_in' => true, 'final_rank' => 1]);
+    $other = $tournament->players()->create(['name' => 'Bob', 'seed' => 2, 'checked_in' => true, 'final_rank' => 2]);
+    $match = $tournament->matches()->create([
+        'round' => 1, 'suggested_play_order' => 1, 'state' => 'complete',
+        'player1_id' => $player->id, 'player2_id' => $other->id, 'winner_id' => $player->id,
+    ]);
+    $score = $match->matchScores()->create(['player_id' => $player->id, 'set' => 1, 'score' => 3]);
+    $participant = $match->participants()->create(['player_id' => $player->id, 'position' => 1, 'score' => 3, 'rank' => 1, 'is_winner' => true]);
+    $dependentMatch = $tournament->matches()->create([
+        'round' => 2, 'suggested_play_order' => 2, 'state' => 'complete',
+        'player1_id' => $player->id, 'player1_prereq_match_id' => $match->id, 'winner_id' => $player->id,
+    ]);
+    $unrelated = DtTournament::create(['name' => 'Other', 'open_id' => 'OTHER', 'mode_type' => $mode, 'status' => 'started']);
+    $unrelatedMatch = $unrelated->matches()->create(['round' => 1, 'suggested_play_order' => 1]);
+    $url = $api ? '/api/v1/tournaments/ROLLBACK/actions/rollback' : '/tournaments/ROLLBACK/rollback';
+
+    if ($api) {
+        $this->postJson($url, ['status' => $status])->assertOk()
+            ->assertJsonPath('data.status', $status === 'started' ? 'pending' : 'started');
+    } else {
+        $this->post($url, ['status' => $status])->assertSessionHasNoErrors()->assertRedirect('/tournaments/ROLLBACK');
+    }
+
+    expect($tournament->fresh()->status->value)->toBe($status === 'started' ? 'pending' : 'started')
+        ->and($player->fresh()->seed)->toBe(1)
+        ->and($player->fresh()->checked_in)->toBeTrue()
+        ->and($tournament->players()->count())->toBe(2)
+        ->and($unrelatedMatch->fresh())->not->toBeNull();
+
+    if ($status === 'started') {
+        expect($tournament->matches()->count())->toBe(0)
+            ->and($score->fresh())->toBeNull()
+            ->and($participant->fresh())->toBeNull()
+            ->and($player->fresh()->final_rank)->toBeNull();
+        app(\App\Bracket\Services\DtTournamentService::class)->startTournament('ROLLBACK');
+        expect($tournament->fresh()->status->value)->toBe('started')
+            ->and($tournament->matches()->exists())->toBeTrue();
+    } else {
+        expect($match->fresh()->winner_id)->toBe($player->id)
+            ->and($dependentMatch->fresh()->player1_prereq_match_id)->toBe($match->id)
+            ->and($score->fresh()->score)->toBe('3.00')
+            ->and($participant->fresh()->is_winner)->toBeTrue()
+            ->and($player->fresh()->final_rank)->toBe(1);
+        // A repeated reopen must not turn into a destructive bracket reset.
+        $this->postJson('/api/v1/tournaments/ROLLBACK/actions/rollback', ['status' => 'ended'])
+            ->assertUnprocessable()->assertJsonValidationErrors('status');
+        expect($match->fresh())->not->toBeNull();
+        app(DtTournamentMatchService::class)->updateMatchScores($match->id, '3-0', $player->id);
+    }
+})->with(['single_elimination', 'double_elimination', 'round_robin', 'swiss', 'free_for_all'])
+    ->with(['started', 'ended'])->with([false, true]);
+
+it('rejects invalid rollback requests without deleting matches', function (string $status, ?string $expected) {
+    $tournament = DtTournament::create(['name' => 'Cup', 'open_id' => 'INVALID', 'mode_type' => 'swiss', 'status' => $status]);
+    $match = $tournament->matches()->create(['round' => 1, 'suggested_play_order' => 1]);
+    $this->postJson('/api/v1/tournaments/INVALID/actions/rollback', ['status' => $expected])
+        ->assertUnprocessable()->assertJsonValidationErrors('status');
+    expect($tournament->fresh()->status->value)->toBe($status)
+        ->and($match->fresh())->not->toBeNull();
+})->with([['pending', 'started'], ['started', 'ended'], ['ended', 'started'], ['started', 'pending'], ['started', null]]);
+
 it('always creates pending tournaments', function () {
     $this->post('/tournaments', ['name' => 'Cup', 'mode_type' => 'single_elimination', 'status' => 'ended'])
         ->assertSessionHasNoErrors()->assertRedirect();

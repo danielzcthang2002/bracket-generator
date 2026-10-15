@@ -93,6 +93,9 @@ export default function Welcome() {
                         <span className="text-[17px] font-bold tracking-[-0.03em]">Bracket</span>
                     </Link>
                     <nav className="flex items-center gap-2 sm:gap-3">
+                        <Link href={route('features')} className="px-2 py-2 text-sm font-medium text-black/60 transition hover:text-black dark:text-white/60 dark:hover:text-white">
+                            Features
+                        </Link>
                         <Link
                             href={route('api.docs')}
                             className="hidden px-3 py-2 text-sm font-medium text-black/60 transition hover:text-black sm:inline-flex dark:text-white/60 dark:hover:text-white"

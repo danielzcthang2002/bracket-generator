@@ -27,6 +27,14 @@ const sections: Section[] = [
         description: 'Create tournaments and retrieve their configuration and lifecycle state.',
         endpoints: [
             {
+                method: 'POST',
+                path: '/tournaments/{openId}/actions/rollback',
+                description: 'Roll back one lifecycle step in any mode. Started → pending permanently deletes matches, scores, and final ranks, keeping players, seeds, and check-ins. Ended → started preserves all results and reopens scoring. Send the current status; stale or invalid requests return 422.',
+                body: `{
+  "status": "ended"
+}`,
+            },
+            {
                 method: 'GET',
                 path: '/tournaments',
                 description: 'List all tournaments. Returns counts for participants and matches.',
@@ -401,6 +409,9 @@ export default function ApiDocs() {
                             <span className="hidden text-sm text-black/50 sm:inline dark:text-white/50">API Docs</span>
                         </Link>
                         <div className="flex items-center gap-2">
+                            <Link href={route('features')} className="rounded-full px-3 py-2 text-sm font-medium text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white">
+                                Features
+                            </Link>
                             <Link
                                 href={route('home')}
                                 className="hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium text-black/50 hover:text-black sm:flex dark:text-white/50 dark:hover:text-white"

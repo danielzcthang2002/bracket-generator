@@ -22,5 +22,6 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::put('tournaments/{openId}/matches/{matchId}/score', [TournamentApiController::class, 'updateMatchScores'])->name('matches.score');
 
     Route::post('tournaments/{openId}/actions/start', [TournamentApiController::class, 'startTournament'])->name('tournaments.start');
+    Route::post('tournaments/{openId}/actions/rollback', [TournamentApiController::class, 'rollbackTournament'])->name('tournaments.rollback');
     Route::post('tournaments/{openId}/actions/end', [TournamentApiController::class, 'endTournament'])->name('tournaments.end');
 });

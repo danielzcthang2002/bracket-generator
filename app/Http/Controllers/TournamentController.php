@@ -471,6 +471,15 @@ class TournamentController extends Controller
             ->with('success', 'Tournament started successfully.');
     }
 
+    public function rollbackTournament(Request $request, string $openId): RedirectResponse
+    {
+        $validated = $request->validate(['status' => ['required', 'in:started,ended']]);
+        app(DtTournamentService::class)->rollbackTournament($openId, $validated['status']);
+
+        return redirect()->route('tournament.show', $openId)
+            ->with('success', 'Tournament status rolled back successfully.');
+    }
+
     public function endTournament(string $openId): RedirectResponse
     {
         $service = app(DtTournamentService::class);

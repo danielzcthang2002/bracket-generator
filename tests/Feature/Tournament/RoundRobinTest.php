@@ -100,6 +100,7 @@ it('generates a round robin schedule', function (
             'name' => 'Player ' . $index,
             'tournament_id' => $tournament->id,
             'checked_in' => true,
+            'seed' => $index,
         ]);
     });
 
@@ -128,4 +129,27 @@ it('generates a round robin schedule', function (
         ->count();
 
     expect($roundOneParticipants)->toBe($expectedRoundOnePlayerCount);
+
+    $preview = app(\App\Bracket\Services\DtRoundRobinService::class)->previewBracket($tournament);
+    foreach ($matches as $match) {
+        $previewMatch = collect($preview[$match->round])
+            ->firstWhere('suggested_play_order', $match->suggested_play_order);
+        expect($previewMatch['player1']['id'])->toBe($match->player1_id)
+            ->and($previewMatch['player2']['id'])->toBe($match->player2_id);
+    }
+
+    if ($playerCount >= 3) {
+        $seedOneId = $players->first()->id;
+        expect($matches->where('player1_id', $seedOneId)->count())->toBeGreaterThan(0)
+            ->and($matches->where('player2_id', $seedOneId)->count())->toBeGreaterThan(0);
+
+        if ($playerCount >= 4) {
+            $positions = $matches->groupBy('round')->map(fn ($roundMatches) =>
+                $roundMatches->values()->search(fn ($match) =>
+                    $match->player1_id === $seedOneId || $match->player2_id === $seedOneId
+                )
+            )->filter(fn ($position) => $position !== false);
+            expect($positions->unique()->count())->toBeGreaterThan(1);
+        }
+    }
 })->with('round robin cases');

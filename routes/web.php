@@ -13,6 +13,10 @@ Route::get('/api-docs', function () {
     return Inertia::render('api-docs');
 })->name('api.docs');
 
+Route::get('/features', function () {
+    return Inertia::render('features');
+})->name('features');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
@@ -35,6 +39,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('{openId}/players/{playerId}', [TournamentController::class, 'destroyPlayer'])->name('tournament.player.destroy');
 
         // Business Logic
+        Route::post('{openId}/rollback', [TournamentController::class, 'rollbackTournament'])->name('tournament.rollback');
         Route::post('{openId}/start', [TournamentController::class, 'startTournament'])->name('tournament.start');
         Route::post('{openId}/end', [TournamentController::class, 'endTournament'])->name('tournament.end');
 

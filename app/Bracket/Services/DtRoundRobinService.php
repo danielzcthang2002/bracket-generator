@@ -54,12 +54,7 @@ class DtRoundRobinService extends DtModeService implements DtHasMode
         $playOrder = 1;
         for ($round = 1; $round < $size; $round++) {
             $preview[$round] = [];
-            for ($i = 0; $i < $size / 2; $i++) {
-                $first = $order[$i];
-                $second = $order[$size - 1 - $i];
-                if ($first === 0 || $second === 0) {
-                    continue;
-                }
+            foreach ($this->roundPairings($order, $round) as [$first, $second]) {
                 $preview[$round][] = [
                     'round' => $round,
                     'suggested_play_order' => $playOrder++,
@@ -94,22 +89,13 @@ class DtRoundRobinService extends DtModeService implements DtHasMode
         }
 
         $numRounds = $numPlayers - 1;
-        $half = $numPlayers / 2;
 
         $validMatchIds = [];
         $suggestedPlayOrder = 1;
         $order = $playerIds;
 
         for ($round = 1; $round <= $numRounds; $round++) {
-            for ($i = 0; $i < $half; $i++) {
-                $player1_id = $order[$i];
-                $player2_id = $order[$numPlayers - 1 - $i];
-
-                // Skip bye pairings entirely — no match row, no opponent.
-                if ($player1_id === 0 || $player2_id === 0) {
-                    continue;
-                }
-
+            foreach ($this->roundPairings($order, $round) as [$player1_id, $player2_id]) {
                 $match = DtTournamentMatch::updateOrCreate([
                     'tournament_id' => $tournament->id,
                     'round' => $round,
@@ -141,12 +127,35 @@ class DtRoundRobinService extends DtModeService implements DtHasMode
     }
 
     /**
-     * Standard round-robin "circle method" rotation: keep the first seat
-     * fixed, move the last seat to position 1, and shift everyone else
-     * down one spot.
-     *
-     * [0,1,2,3] -> [0,3,1,2] -> [0,2,3,1] -> ... cycles through n-1 rounds
-     * and produces every unique pairing exactly once.
+     * Present circle pairings with alternating sides for the fixed player
+     * and a rotating match order, omitting byes.
+     */
+    private function roundPairings(array $order, int $round): array
+    {
+        $pairings = [];
+        $size = count($order);
+        for ($i = 0; $i < $size / 2; $i++) {
+            $first = $order[$i];
+            $second = $order[$size - 1 - $i];
+            if ($first === 0 || $second === 0) {
+                continue;
+            }
+
+            // Alternate the fixed player's side while preserving circle pairings.
+            $pairings[] = $i === 0 && $round % 2 === 0
+                ? [$second, $first]
+                : [$first, $second];
+        }
+
+        // Vary match order so the fixed player does not always play first.
+        $offset = ($round - 1) % count($pairings);
+
+        return array_merge(array_slice($pairings, $offset), array_slice($pairings, 0, $offset));
+    }
+
+    /**
+     * Keep the first seat fixed and move the last seat to position 1.
+     * Cycling through n-1 rounds produces every unique pairing once.
      */
     private function rotate(array $order): array
     {

@@ -225,6 +225,32 @@ class DtTournamentService
         });
     }
 
+    public function rollbackTournament(string $openId, string $expectedStatus): DtTournament
+    {
+        return DB::transaction(function () use ($openId, $expectedStatus): DtTournament {
+            $tournament = DtTournament::query()
+                ->where('open_id', $openId)->lockForUpdate()->firstOrFail();
+
+            if ($tournament->status->value !== $expectedStatus
+                || ! in_array($tournament->status, [DtTournamentStatus::STARTED, DtTournamentStatus::ENDED], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'status' => 'Tournament status has changed or cannot be rolled back. Refresh and try again.',
+                ]);
+            }
+
+            if ($tournament->status === DtTournamentStatus::STARTED) {
+                $tournament->matches()->delete();
+                $tournament->players()->update(['final_rank' => null]);
+                $tournament->status = DtTournamentStatus::PENDING;
+            } else {
+                $tournament->status = DtTournamentStatus::STARTED;
+            }
+            $tournament->save();
+
+            return $tournament;
+        });
+    }
+
     public function endTournament(string $openId): DtTournament
     {
         $tournament = DtTournament::query()

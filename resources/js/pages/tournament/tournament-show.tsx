@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
@@ -245,6 +245,8 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
     const [confirmingTournamentDelete, setConfirmingTournamentDelete] = useState(false);
     const [confirmingTournamentStart, setConfirmingTournamentStart] = useState(false);
     const [confirmingTournamentEnd, setConfirmingTournamentEnd] = useState(false);
+    const [confirmingTournamentRollback, setConfirmingTournamentRollback] = useState(false);
+    const rollbackForm = useForm({ status: tournament.status });
     const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
     const [playersOpen, setPlayersOpen] = useState(false);
     const [scoringMatch, setScoringMatch] = useState<TournamentMatch | null>(null);
@@ -358,6 +360,16 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
         });
     };
 
+    const rollbackTournament = () => {
+        if (!confirmingTournamentRollback || rollbackForm.processing) return;
+        rollbackForm.post(route('tournament.rollback', [tournament.open_id]), {
+            preserveScroll: true,
+            onStart: () => setTournamentActionError(null),
+            onError: (errors) => setTournamentActionError(Object.values(errors)[0] ?? 'Unable to roll back the tournament.'),
+            onSuccess: () => setConfirmingTournamentRollback(false),
+        });
+    };
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Tournament',
@@ -384,6 +396,14 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                     </div>
                     <div className="relative flex flex-wrap items-center gap-2">
                         {/* <AddPlayerModal open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal} tournamentOpenId={tournament.open_id} /> */}
+                        {(tournament.status === 'started' || tournament.status === 'ended') && (
+                            <Button variant="destructive" className="rounded-full" disabled={rollbackForm.processing} onClick={() => {
+                                rollbackForm.setData('status', tournament.status);
+                                setConfirmingTournamentRollback(true);
+                            }}>
+                                {tournament.status === 'started' ? 'Reset to pending' : 'Reopen tournament'}
+                            </Button>
+                        )}
                         {tournament.status == 'pending' && (
                             <Button onClick={() => setConfirmingTournamentStart(true)} disabled={startTournamentProcessing} className="rounded-full bg-lime-400 font-semibold text-[#10140c] hover:bg-lime-300">
                                 Start tournament
@@ -712,6 +732,25 @@ export default function TournamentShow({ tournament, bracketPreview }: Tournamen
                 player={editingPlayer}
                 checkInLocked={tournament.status === 'started' || tournament.status === 'ended'}
             />
+
+            <Dialog open={confirmingTournamentRollback} onOpenChange={(open) => !rollbackForm.processing && setConfirmingTournamentRollback(open)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{tournament.status === 'started' ? 'Reset tournament to pending?' : 'Reopen tournament?'}</DialogTitle>
+                        <DialogDescription>
+                            {tournament.status === 'started'
+                                ? 'All generated matches, scores, and final ranks will be permanently deleted. Players, seeds, and check-ins will be kept. Starting again will generate a fresh bracket.'
+                                : 'The tournament will return to started. All matches and results will be kept, and you can edit scores again.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" disabled={rollbackForm.processing} onClick={() => setConfirmingTournamentRollback(false)}>Cancel</Button>
+                        <Button variant="destructive" disabled={rollbackForm.processing} onClick={rollbackTournament}>
+                            {rollbackForm.processing ? 'Rolling back…' : tournament.status === 'started' ? 'Reset to pending' : 'Reopen tournament'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={confirmingTournamentStart} onOpenChange={(open) => !startTournamentProcessing && setConfirmingTournamentStart(open)}>
                 <DialogContent className="rounded-2xl border-black/10 bg-[#f8f9f3] dark:border-white/10 dark:bg-[#151913]">

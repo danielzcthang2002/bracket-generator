@@ -219,6 +219,13 @@ const matchResponse: ApiField[] = [
 ];
 
 export function getEndpointFields(method: string, path: string): { request: ApiField[]; response: ApiField[]; responseDescription: string } {
+    if (path.endsWith('/actions/rollback')) {
+        return {
+            request: [{ name: 'status', type: 'string', rule: 'Required: started or ended', description: 'Expected current status. Must match the tournament; rollback moves it back one step.' }],
+            response: tournamentResponse,
+            responseDescription: '200 OK. data is the tournament with its updated status. Invalid or stale status returns 422 without changing data.',
+        };
+    }
     if (path.includes('/matches/preview')) {
         return {
             request: [],

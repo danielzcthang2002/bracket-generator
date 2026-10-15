@@ -188,6 +188,14 @@ class TournamentApiController extends BaseApiController
         return $this->successResponse(new TournamentResource($tournament), 'Tournament started successfully.');
     }
 
+    public function rollbackTournament(Request $request, string $openId): JsonResponse
+    {
+        $validated = $request->validate(['status' => ['required', 'in:started,ended']]);
+        $tournament = $this->tournamentService->rollbackTournament($openId, $validated['status']);
+
+        return $this->successResponse(new TournamentResource($tournament), 'Tournament status rolled back successfully.');
+    }
+
     public function endTournament(Request $request, string $openId): JsonResponse
     {
         $tournament = $this->tournamentService->endTournament($openId);
